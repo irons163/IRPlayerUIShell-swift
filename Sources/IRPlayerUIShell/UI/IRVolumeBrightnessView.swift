@@ -146,6 +146,6 @@ class IRVolumeBrightnessView: UIView {
         isHidden = false
         alpha = 1
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(hideTipView), object: nil)
-        perform(#selector(hideTipView), with: nil, afterDelay: 1.5)
+        perform(#selector(hideTipView), with: nil, afterDelay: 0.5)
     }
 }

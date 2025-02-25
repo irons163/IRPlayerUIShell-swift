@@ -23,8 +23,8 @@ class IRNetworkSpeedMonitor {
     private(set) var uploadNetworkSpeed: String = ""
 
     private var timer: Timer?
-    private var iBytes: UInt32 = 0
-    private var oBytes: UInt32 = 0
+    private var iBytes: UInt64 = 0
+    private var oBytes: UInt64 = 0
 
     // MARK: - Public Methods
 
@@ -45,8 +45,8 @@ class IRNetworkSpeedMonitor {
     // MARK: - Private Methods
 
     @objc private func checkNetworkSpeed() {
-        var iBytes: UInt32 = 0
-        var oBytes: UInt32 = 0
+        var iBytes: UInt64 = 0
+        var oBytes: UInt64 = 0
 
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0 else { return }
@@ -58,8 +58,8 @@ class IRNetworkSpeedMonitor {
 
                 if let name = String(validatingUTF8: interface.ifa_name),
                    !name.hasPrefix("lo") { // Exclude loopback
-                    iBytes += data.pointee.ifi_ibytes
-                    oBytes += data.pointee.ifi_obytes
+                    iBytes += UInt64(data.pointee.ifi_ibytes)
+                    oBytes += UInt64(data.pointee.ifi_obytes)
                 }
             }
             ptr = interface.ifa_next
@@ -85,7 +85,7 @@ class IRNetworkSpeedMonitor {
         self.oBytes = oBytes
     }
 
-    private func formatBytes(bytes: UInt32) -> String {
+    private func formatBytes(bytes: UInt64) -> String {
         if bytes < 1024 {
             return "\(bytes)B"
         } else if bytes < 1024 * 1024 {

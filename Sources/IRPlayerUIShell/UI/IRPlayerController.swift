@@ -577,7 +577,12 @@ extension IRPlayerMediaControl {
        - animated: Determines if the transition should be animated.
      */
     public func enterFullScreen(_ fullScreen: Bool, animated: Bool) {
-        // Implement full screen logic
+        if orientationObserver.fullScreenMode == .portrait {
+            orientationObserver.enterPortraitFullScreen(fullScreen, animated: animated)
+        } else {
+            let orientation: UIInterfaceOrientation = fullScreen ? .landscapeRight : .portrait
+            orientationObserver.enterLandscapeFullScreen(orientation: orientation, animated: animated)
+        }
     }
 
     /**
@@ -588,7 +593,8 @@ extension IRPlayerMediaControl {
        - animated: Determines if the transition should be animated.
      */
     public func enterLandscapeFullScreen(_ orientation: UIInterfaceOrientation, animated: Bool) {
-        // Implement landscape full screen logic
+        orientationObserver.fullScreenMode = .landscape
+        orientationObserver.enterLandscapeFullScreen(orientation: orientation, animated: animated)
     }
 
     /**
@@ -599,21 +605,22 @@ extension IRPlayerMediaControl {
        - animated: Determines if the transition should be animated.
      */
     public func enterPortraitFullScreen(_ fullScreen: Bool, animated: Bool) {
-        // Implement portrait full screen logic
+        orientationObserver.fullScreenMode = .portrait
+        orientationObserver.enterPortraitFullScreen(fullScreen, animated: animated)
     }
 
     /**
      Adds the device orientation observer.
      */
     public func addDeviceOrientationObserver() {
-        // Add observer logic
+        orientationObserver.addDeviceOrientationObserver()
     }
 
     /**
      Removes the device orientation observer.
      */
     public func removeDeviceOrientationObserver() {
-        // Remove observer logic
+        orientationObserver.removeDeviceOrientationObserver()
     }
 
     @objc private func stateAction(_ notification: Notification) {

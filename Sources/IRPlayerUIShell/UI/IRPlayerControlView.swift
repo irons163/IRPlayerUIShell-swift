@@ -16,8 +16,8 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         didSet {
             guard playerController != oldValue else { return }
 
-            landScapeControlView.player = playerController
-            portraitControlView.player = playerController
+            landScapeControlView.playerController = playerController
+            portraitControlView.playerController = playerController
 
             if let superview = playerController?.currentPlayerManager.view?.superview {
                 superview.insertSubview(bgImageView, at: 0)
@@ -660,7 +660,7 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
                 self.landScapeControlView.isHidden = false
             } else {
                 if self.playerController?.isSmallFloatViewShow == false {
-                    self.portraitControlView.isHidden = true
+                    self.portraitControlView.isHidden = false
                 }
             }
         }) { _ in

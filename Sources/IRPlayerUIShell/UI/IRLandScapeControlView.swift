@@ -11,19 +11,51 @@ import IRPlayerSwift
 class IRLandScapeControlView: UIView, IRSliderViewDelegate {
 
     func sliderTouchBegan(value: CGFloat) {
-
+        slider.isDragging = true
     }
     
     func sliderValueChanged(value: CGFloat) {
-
+        guard let playerController, playerController.totalTime > 0 else {
+            slider.value = 0
+            return
+        }
+        slider.isDragging = true
+        let currentTimeString = IRUtilities.convertTimeSecond(Int(playerController.totalTime * Double(value)))
+        currentTimeLabel.text = currentTimeString
+        sliderValueChanging?(value, slider.isForward)
     }
     
     func sliderTouchEnded(value: CGFloat) {
+        if let playerController, playerController.totalTime > 0 {
+            weak var weakSelf = self
+            playerController.seek(to: playerController.totalTime * Double(value)) { finished in
+                guard let strongSelf = weakSelf else { return }
+                if finished {
+                    strongSelf.slider.isDragging = false
+                }
+            }
+            if seekToPlay {
+                playerController.currentPlayerManager.play()
+            }
+        } else {
+            slider.isDragging = false
+        }
 
+        sliderValueChanged?(value)
     }
     
     func sliderTapped(value: CGFloat) {
-
+        if let playerController, playerController.totalTime > 0 {
+            slider.isDragging = true
+            playerController.seek(to: playerController.totalTime * Double(value)) { [weak self] finished in
+                guard let self, finished else { return }
+                self.slider.isDragging = false
+                self.playerController?.currentPlayerManager.play()
+            }
+        } else {
+            slider.isDragging = false
+            slider.value = 0
+        }
     }
 
     var backButtonClickCallback: (() -> Void)?
@@ -293,15 +325,15 @@ class IRLandScapeControlView: UIView, IRSliderViewDelegate {
         withGestureType type: IRGestureType,
         touch: UITouch
     ) -> Bool {
-        // 将 slider 的 frame 转换为当前视图的坐标系
+        // Convert the slider's frame to the coordinate system of the current view
         let sliderRect = bottomToolView.convert(slider.frame, to: self)
 
-        // 如果触控点在 slider 范围内，则不响应手势
+        // If the touch point is within the slider's range, do not respond to the gesture
         if sliderRect.contains(point) {
             return false
         }
 
-        // 如果屏幕已锁定且手势不是单击，则不响应手势
+        // If the screen is locked and the gesture is not a single tap, do not respond to the gesture
         if (playerController?.isLockedScreen ?? false) && type != .singleTap {
             return false
         }
@@ -309,7 +341,7 @@ class IRLandScapeControlView: UIView, IRSliderViewDelegate {
         return true
     }
 
-    /// 调节播放进度 slider 和当前时间更新
+    /// Adjusts the playback progress slider and updates the current time
     func sliderValueChanged(_ value: CGFloat, currentTimeString: String) {
         slider.value = value
         currentTimeLabel.text = currentTimeString
@@ -320,7 +352,7 @@ class IRLandScapeControlView: UIView, IRSliderViewDelegate {
         }
     }
 
-    /// 滑杆结束滑动
+    /// Handles the end of slider movement
     func sliderChangeEnded() {
         slider.isDragging = false
         UIView.animate(withDuration: 0.3) {

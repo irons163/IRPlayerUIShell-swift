@@ -202,10 +202,76 @@ class IROrientationObserver {
         }
     }
 
-    private func normalOrientation(orientation: UIInterfaceOrientation, animated: Bool) {
-        // Similar to forceDeviceOrientation with additional logic
-        // depending on rotateType and container views
+    private func normalOrientation(_ orientation: UIInterfaceOrientation, animated: Bool) {
+        var superview: UIView?
+        var frame: CGRect
+
+        if orientation.isLandscape {
+            superview = fullScreenContainerView
+
+            /// Ensure the transition isn't from one side of the screen to the other
+            if !isFullScreen {
+                view.frame = view.convert(view.frame, to: superview)
+            }
+            superview?.addSubview(view)
+            isFullScreen = true
+            orientationWillChange?(self, isFullScreen)
+
+            let fullVC = IRFullViewController()
+            fullVC.interfaceOrientationMask = (orientation == .landscapeLeft) ? .landscapeLeft : .landscapeRight
+            customWindow.rootViewController = fullVC
+        } else {
+            isFullScreen = false
+            orientationWillChange?(self, isFullScreen)
+
+            let fullVC = IRFullViewController()
+            fullVC.interfaceOrientationMask = .portrait
+            customWindow.rootViewController = fullVC
+
+            if roateType == .cell {
+                superview = cell?.viewWithTag(playerViewTag)
+            } else {
+                superview = containerView
+            }
+
+            if blackView.superview != nil {
+                blackView.removeFromSuperview()
+            }
+        }
+
+        frame = superview?.convert(superview!.bounds, to: fullScreenContainerView) ?? .zero
+
+        if animated {
+            UIView.animate(withDuration: duration, animations: {
+                self.view.transform = self.getTransformRotationAngle(orientation)
+                UIView.animate(withDuration: self.duration, animations: {
+                    self.view.frame = frame
+                    self.view.layoutIfNeeded()
+                })
+            }, completion: { _ in
+                superview?.addSubview(self.view)
+                self.view.frame = superview?.bounds ?? .zero
+                if self.isFullScreen {
+                    superview?.insertSubview(self.blackView, belowSubview: self.view)
+                    self.blackView.frame = superview?.bounds ?? .zero
+                }
+                self.orientationDidChanged?(self, self.isFullScreen)
+            })
+        } else {
+            view.transform = getTransformRotationAngle(orientation)
+            superview?.addSubview(view)
+            view.frame = superview?.bounds ?? .zero
+            view.layoutIfNeeded()
+
+            if isFullScreen {
+                superview?.insertSubview(blackView, belowSubview: view)
+                blackView.frame = superview?.bounds ?? .zero
+            }
+
+            orientationDidChanged?(self, isFullScreen)
+        }
     }
+
 }
 
 // MARK: - Extensions

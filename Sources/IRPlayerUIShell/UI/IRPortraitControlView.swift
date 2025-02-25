@@ -13,14 +13,20 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     // MARK: - Properties
 
     /// Bottom tool view
-    private(set) var bottomToolView: UIView = {
+    private(set) lazy var bottomToolView: UIView = {
         let view = UIView()
+        if let image = IRUtilities.image(named: "IRPlayer_bottom_shadow") {
+            view.layer.contents = image.cgImage
+        }
         return view
     }()
 
     /// Top tool view
-    private(set) var topToolView: UIView = {
+    private(set) lazy var topToolView: UIView = {
         let view = UIView()
+        if let image = IRUtilities.image(named: "IRPlayer_top_shadow") {
+            view.layer.contents = image.cgImage
+        }
         return view
     }()
 
@@ -77,7 +83,7 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     }()
 
     /// Player
-    weak var player: IRPlayerController?
+    weak var playerController: IRPlayerController?
 
     /// Indicates if the slider is dragging
     private var isSliderDragging: Bool = false
@@ -92,7 +98,7 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     var seekToPlay: Bool = true
 
     /// Indicates if the control view is showing
-    private var isShowing: Bool = false
+    private(set) var isShowing: Bool = false
 
     // MARK: - Initializers
 
@@ -141,7 +147,7 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
 
     func showTitle(_ title: String, fullScreenMode: IRFullScreenMode) {
         titleLabel.text = title
-        player?.orientationObserver.fullScreenMode = fullScreenMode
+        playerController?.orientationObserver.fullScreenMode = fullScreenMode
     }
 
     // MARK: - Actions
@@ -151,15 +157,15 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     }
 
     @objc private func fullScreenButtonClickAction() {
-        player?.enterFullScreen(true, animated: true)
+        playerController?.enterFullScreen(true, animated: true)
     }
 
     func playOrPause() {
         playOrPauseBtn.isSelected.toggle()
         if playOrPauseBtn.isSelected {
-            player?.currentPlayerManager.play()
+            playerController?.currentPlayerManager.play()
         } else {
-            player?.currentPlayerManager.pause()
+            playerController?.currentPlayerManager.pause()
         }
     }
 
@@ -170,28 +176,28 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     }
 
     func sliderTouchEnded(value: CGFloat) {
-        guard let player = player, player.totalTime > 0 else {
+        guard let playerController, playerController.totalTime > 0 else {
             slider.isDragging = false
             return
         }
-        let seekTime = player.totalTime * Double(value)
-        player.seek(to: seekTime) { [weak self] finished in
+        let seekTime = playerController.totalTime * Double(value)
+        playerController.seek(to: seekTime) { [weak self] finished in
             guard let self = self else { return }
             self.slider.isDragging = !finished
         }
         if seekToPlay {
-            player.currentPlayerManager.play()
+            playerController.currentPlayerManager.play()
         }
         sliderValueChanged?(value)
     }
 
     func sliderValueChanged(value: CGFloat) {
-        guard let player = player, player.totalTime > 0 else {
+        guard let playerController, playerController.totalTime > 0 else {
             slider.value = 0
             return
         }
         slider.isDragging = true
-        let currentTime = player.totalTime * Double(value)
+        let currentTime = playerController.totalTime * Double(value)
         currentTimeLabel.text = IRUtilities.convertTimeSecond(Int(currentTime))
         sliderValueChanging?(value, slider.isForward)
     }
@@ -216,18 +222,18 @@ class IRPortraitControlView: UIView, IRSliderViewDelegate {
     }
 
     func sliderTapped(value: CGFloat) {
-        guard let player = player, player.totalTime > 0 else {
+        guard let playerController, playerController.totalTime > 0 else {
             slider.isDragging = false
             slider.value = 0
             return
         }
         slider.isDragging = true
-        let seekTime = player.totalTime * Double(value)
-        player.seek(to: seekTime) { [weak self] finished in
+        let seekTime = playerController.totalTime * Double(value)
+        playerController.seek(to: seekTime) { [weak self] finished in
             guard let self = self else { return }
             self.slider.isDragging = !finished
             if finished {
-                player.currentPlayerManager.play()
+                playerController.currentPlayerManager.play()
             }
         }
     }
