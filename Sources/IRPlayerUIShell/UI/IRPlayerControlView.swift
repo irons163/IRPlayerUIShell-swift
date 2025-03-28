@@ -581,9 +581,24 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
             fastImageView.image = IRUtilities.image(named: "IRPlayer_fast_backward")
         }
 
+//        let totalTime = playerController?.totalTime ?? 0
+//        let clampedValue = min(max(totalTime, Double(Int.min)), Double(Int.max))
+//        let totalIntTime = Int(clampedValue.rounded(.down))
+
+
         let totalTime = playerController?.totalTime ?? 0
-        let clampedValue = min(max(totalTime, Double(Int.min)), Double(Int.max))
-        let totalIntTime = Int(clampedValue.rounded(.down))
+        let roundedValue = totalTime.rounded(.down)
+
+        // Safely clamp the Double within Int's valid range
+        let safeValue: Double = min(max(roundedValue, Double(Int.min)), Double(Int.max))
+
+        // Convert safely
+        let totalIntTime = Int(safeValue)
+
+//        let totalTime = playerController?.totalTime ?? 0
+//        let roundedValue = totalTime.rounded(.down)
+//        let clampedValue = max(Double(Int.min), min(Double(Int.max), roundedValue))
+//        let totalIntTime = Int(clampedValue) // This is now safe
 
         let clampedDraggedTime = min(max(totalTime * value, Double(Int.min)), Double(Int.max))
         let draggedIntTime = Int(clampedDraggedTime.rounded(.down))

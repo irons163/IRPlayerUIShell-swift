@@ -68,7 +68,7 @@ class IRNetworkSpeedMonitor {
         freeifaddrs(ifaddr)
 
         if self.iBytes != 0 {
-            let downloadSpeed = iBytes - self.iBytes
+            let downloadSpeed = iBytes >= self.iBytes ? iBytes - self.iBytes : 0
             downloadNetworkSpeed = "\(formatBytes(bytes: downloadSpeed))/s"
             NotificationCenter.default.post(name: .IRDownloadNetworkSpeedNotification, object: nil, userInfo: ["speed": downloadNetworkSpeed])
             print("Download Network Speed: \(downloadNetworkSpeed)")

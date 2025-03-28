@@ -34,13 +34,30 @@ struct IRInterfaceOrientationMask: OptionSet {
     static let allButUpsideDown: IRInterfaceOrientationMask = [.portrait, .landscapeLeft, .landscapeRight]
 }
 
+class IRFullViewController: UIViewController {
+    var interfaceOrientationMask: UIInterfaceOrientationMask?
+
+    override var shouldAutorotate: Bool {
+        return true
+    }
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        return interfaceOrientationMask ?? .landscape
+    }
+}
+
 // MARK: - Orientation Observer
 class IROrientationObserver {
 
     // MARK: - Public Properties
     weak var fullScreenContainerView: UIView?
     weak var containerView: UIView?
-    var isFullScreen: Bool { fullScreen }
+    var isFullScreen: Bool = false {
+        didSet {
+            UIWindow.currentViewController?.setNeedsStatusBarAppearanceUpdate()
+            UIViewController.attemptRotationToDeviceOrientation()
+        }
+    }
     var forceDeviceOrientation = false
     var lockedScreen = false {
         didSet { lockedScreen ? removeDeviceOrientationObserver() : addDeviceOrientationObserver() }
@@ -114,18 +131,18 @@ class IROrientationObserver {
         if forceDeviceOrientation {
             forceDeviceOrientation(orientation: orientation, animated: animated)
         } else {
-            normalOrientation(orientation: orientation, animated: animated)
+            normalOrientation(orientation, animated: animated)
         }
     }
 
     func enterPortraitFullScreen(_ fullScreen: Bool, animated: Bool) {
         guard fullScreenMode != .landscape else { return }
         self.fullScreen = fullScreen
-        guard let view = view else { return }
+        guard let view else { return }
         let superview: UIView? = fullScreen ? fullScreenContainerView : containerView
 
         if fullScreen {
-            self.view?.frame = view.convert(view.bounds, to: superview)
+            view.frame = view.convert(view.bounds, to: superview)
             superview?.addSubview(view)
         }
 
@@ -206,6 +223,8 @@ class IROrientationObserver {
         var superview: UIView?
         var frame: CGRect
 
+        guard let view else { return }
+
         if orientation.isLandscape {
             superview = fullScreenContainerView
 
@@ -228,7 +247,7 @@ class IROrientationObserver {
             fullVC.interfaceOrientationMask = .portrait
             customWindow.rootViewController = fullVC
 
-            if roateType == .cell {
+            if rotateType == .cell {
                 superview = cell?.viewWithTag(playerViewTag)
             } else {
                 superview = containerView
@@ -242,23 +261,25 @@ class IROrientationObserver {
         frame = superview?.convert(superview!.bounds, to: fullScreenContainerView) ?? .zero
 
         if animated {
-            UIView.animate(withDuration: duration, animations: {
-                self.view.transform = self.getTransformRotationAngle(orientation)
-                UIView.animate(withDuration: self.duration, animations: {
-                    self.view.frame = frame
-                    self.view.layoutIfNeeded()
+            UIView.animate(withDuration: duration, animations: { [weak self] in
+                guard let self else { return }
+                view.transform = CGAffineTransform.transformRotationAngle(for: orientation)
+                UIView.animate(withDuration: duration, animations: {
+                    view.frame = frame
+                    view.layoutIfNeeded()
                 })
-            }, completion: { _ in
-                superview?.addSubview(self.view)
-                self.view.frame = superview?.bounds ?? .zero
-                if self.isFullScreen {
-                    superview?.insertSubview(self.blackView, belowSubview: self.view)
-                    self.blackView.frame = superview?.bounds ?? .zero
+            }, completion: { [weak self] _ in
+                guard let self else { return }
+                superview?.addSubview(view)
+                view.frame = superview?.bounds ?? .zero
+                if isFullScreen {
+                    superview?.insertSubview(blackView, belowSubview: view)
+                    blackView.frame = superview?.bounds ?? .zero
                 }
-                self.orientationDidChanged?(self, self.isFullScreen)
+                orientationDidChanged?(self, isFullScreen)
             })
         } else {
-            view.transform = getTransformRotationAngle(orientation)
+            view.transform = CGAffineTransform.transformRotationAngle(for: orientation)
             superview?.addSubview(view)
             view.frame = superview?.bounds ?? .zero
             view.layoutIfNeeded()
@@ -284,5 +305,40 @@ extension UIDeviceOrientation {
         case .portraitUpsideDown: return .portraitUpsideDown
         default: return nil
         }
+    }
+}
+
+extension CGAffineTransform {
+    /// Gets the rotation angle for the given UIInterfaceOrientation.
+    static func transformRotationAngle(for orientation: UIInterfaceOrientation) -> CGAffineTransform {
+        switch orientation {
+        case .portrait:
+            return .identity
+        case .landscapeLeft:
+            return CGAffineTransform(rotationAngle: -.pi / 2)
+        case .landscapeRight:
+            return CGAffineTransform(rotationAngle: .pi / 2)
+        default:
+            return .identity
+        }
+    }
+}
+
+extension UIWindow {
+    /// Returns the top-most view controller in the window hierarchy.
+    static var currentViewController: UIViewController? {
+        guard let window = UIApplication.shared.delegate?.window ?? UIApplication.shared.keyWindow else {
+            return nil
+        }
+        var topViewController = window.rootViewController
+        while let presentedViewController = topViewController?.presentedViewController {
+            topViewController = presentedViewController
+        }
+        if let navigationController = topViewController as? UINavigationController {
+            topViewController = navigationController.topViewController
+        } else if let tabBarController = topViewController as? UITabBarController {
+            topViewController = tabBarController.selectedViewController
+        }
+        return topViewController
     }
 }
