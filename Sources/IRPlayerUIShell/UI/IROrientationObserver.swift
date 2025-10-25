@@ -277,38 +277,12 @@ class IROrientationObserver {
         guard let view else { return }
 
         if orientation.isLandscape {
-//            OrientationLock.forcePortrait()
-
             superview = fullScreenContainerView
-
-//            supportInterfaceOrientation = .landscape
-//            let lockVC = IRFullViewController()
-//            lockVC.modalPresentationStyle = .overFullScreen
-//            lockVC.view.isUserInteractionEnabled = false
-//            superview = lockVC.view
-//            UIApplication.shared.keyWindow?.rootViewController?.present(lockVC, animated: false)
-
-            /// Ensure the transition isn't from one side of the screen to the other
-//            if !isFullScreen {
-//                view.frame = view.convert(view.frame, to: superview)
-//            }
-//            superview?.addSubview(view)
             isFullScreen = true
             orientationWillChange?(self, isFullScreen)
-
-//            let fullVC = IRFullViewController()
-//            fullVC.interfaceOrientationMask = (orientation == .landscapeLeft) ? .landscapeLeft : .landscapeRight
-//            customWindow.rootViewController = fullVC
         } else {
-//            OrientationLock.forcePortrait()
-
             isFullScreen = false
             orientationWillChange?(self, isFullScreen)
-
-//            let fullVC = IRFullViewController()
-//            fullVC.interfaceOrientationMask = .portrait
-//            customWindow.rootViewController = fullVC
-
             if rotateType == .cell {
                 superview = cell?.viewWithTag(playerViewTag)
             } else {

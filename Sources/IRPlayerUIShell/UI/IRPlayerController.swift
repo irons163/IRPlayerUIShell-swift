@@ -541,7 +541,6 @@ extension IRPlayerMediaControl {
             if let controlView = controlView as? IRPlayerControlView {
                 controlView.videoPlayer(self, orientationWillChange: observer)
             }
-//            self.shouldAutorotate = !isFullScreen
             controlView?.setNeedsLayout()
             controlView?.layoutIfNeeded()
         }
