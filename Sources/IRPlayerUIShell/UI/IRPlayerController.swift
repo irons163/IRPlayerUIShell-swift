@@ -228,12 +228,28 @@ extension IRPlayerMediaControl {
     public private(set) var currentPlayIndex: Int = 0
 
     // 0...1.0, where 1.0 is maximum brightness. Only supported by main screen.
-    public var brightness: CGFloat = 0
+    @Clamped(0...1) public var brightness: CGFloat = 0 {
+        didSet {
+            UIScreen.main.brightness = brightness
+        }
+    }
 
     /// 0...1.0
     /// Only affects audio volume for the device instance and not for the player.
     /// You can change device volume or player volume as needed,change the player volume you can conform the `IRPlayerMediaPlayback` protocol.
-    public var volume: CGFloat = 0
+    public var volume: CGFloat {
+        get {
+            CGFloat(volumeController.currentVolume ?? 0)
+        }
+        set {
+            volumeController.setVolume(Float(newValue))
+        }
+    }
+
+    private lazy var volumeController = {
+        let volumeController = SystemVolumeController(parentView: controlView)
+        return volumeController
+    }()
 
     /// The play asset URL.
     public var assetURL: URL? {
@@ -248,10 +264,6 @@ extension IRPlayerMediaControl {
     public var disableGestureTypes: IRPlayerSwift.IRDisableGestureTypes = .none
 
     /// An instance of IRPlayerGestureControl.
-//    public var gestureControl: IRGestureControllerProtocol? {
-//        return currentPlayerManager.gestureControl
-//    }
-
     public lazy var gestureControl: IRGestureController = {
 
         let gestureControl = IRGestureController()
@@ -293,7 +305,6 @@ extension IRPlayerMediaControl {
 
         return gestureControl
     }()
-
 
     /// The pan gesture moving direction that the player not support.
     public var disablePanMovingDirection: IRDisablePanMovingDirection = .none
@@ -381,7 +392,6 @@ extension IRPlayerMediaControl {
             return
         }
 
-        // 添加播放器视图到对应的父视图
         if playerView.superview == nil {
             var superview: UIView?
             if isFullScreen {
@@ -393,7 +403,6 @@ extension IRPlayerMediaControl {
             if let superview = superview {
                 superview.addSubview(playerView)
 
-                // 添加自动布局约束
                 playerView.translatesAutoresizingMaskIntoConstraints = false
                 NSLayoutConstraint.activate([
                     playerView.topAnchor.constraint(equalTo: superview.topAnchor),
@@ -406,11 +415,9 @@ extension IRPlayerMediaControl {
             orientationObserver.updateRotateView(playerView, containerView: containerView)
         }
 
-        // 添加控制视图到播放器视图
         if let controlView = controlView, controlView.superview == nil {
             playerView.addSubview(controlView)
 
-            // 添加自动布局约束
             controlView.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
                 controlView.topAnchor.constraint(equalTo: playerView.topAnchor),
@@ -534,6 +541,7 @@ extension IRPlayerMediaControl {
             if let controlView = controlView as? IRPlayerControlView {
                 controlView.videoPlayer(self, orientationWillChange: observer)
             }
+//            self.shouldAutorotate = !isFullScreen
             controlView?.setNeedsLayout()
             controlView?.layoutIfNeeded()
         }
@@ -561,7 +569,9 @@ extension IRPlayerMediaControl {
     public var allowOrientationRotation: Bool = true
 
     /// Indicates whether the player is in full-screen mode.
-    public var isFullScreen: Bool = false
+    public var isFullScreen: Bool {
+        return orientationObserver.isFullScreen
+    }
 
     /// The statusbar hidden.
     public var isStatusBarHidden: Bool = false
@@ -670,7 +680,6 @@ extension IRPlayerMediaControl {
             text = "Buffering..."
 
             currentPlayerManager.view?.isHidden = false
-//            notification.addNotification()
             addDeviceOrientationObserver()
 
 //            if let scrollView = scrollView {
@@ -729,9 +738,60 @@ extension IRPlayerMediaControl {
         @unknown default:
             text = "Unknown State"
         }
-
-        // Update UI state label if necessary
-        // stateLabel?.text = text
     }
 
+}
+
+@propertyWrapper
+public struct Clamped<Value: Comparable> {
+    private var value: Value
+    private let range: ClosedRange<Value>
+
+    init(wrappedValue: Value, _ range: ClosedRange<Value>) {
+        self.range = range
+        self.value = range.clamp(wrappedValue)
+    }
+
+    public var wrappedValue: Value {
+        get { value }
+        set { value = range.clamp(newValue) }
+    }
+}
+
+private extension ClosedRange where Bound: Comparable {
+    func clamp(_ value: Bound) -> Bound {
+        return min(max(lowerBound, value), upperBound)
+    }
+}
+
+import UIKit
+import MediaPlayer
+
+final class SystemVolumeController {
+    private let volumeView: MPVolumeView = {
+        let view = MPVolumeView(frame: .zero)
+        view.isHidden = true
+        return view
+    }()
+
+    private var volumeSlider: UISlider? {
+        return volumeView.subviews.compactMap { $0 as? UISlider }.first
+    }
+
+    init(parentView: UIView? = nil) {
+        if let parent = parentView {
+            parent.addSubview(volumeView)
+        } else {
+            UIApplication.shared.windows.first?.addSubview(volumeView)
+        }
+    }
+
+    func setVolume(_ value: Float) {
+        let clamped = min(max(value, 0.0), 1.0)
+        volumeSlider?.value = clamped
+    }
+
+    var currentVolume: Float? {
+        return volumeSlider?.value
+    }
 }

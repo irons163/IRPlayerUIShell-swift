@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import IRPlayerSwift
 
 // MARK: - Full Screen Mode
 public enum IRFullScreenMode: UInt {
@@ -38,11 +39,11 @@ class IRFullViewController: UIViewController {
     var interfaceOrientationMask: UIInterfaceOrientationMask?
 
     override var shouldAutorotate: Bool {
-        return true
+        return false
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-        return interfaceOrientationMask ?? .landscape
+        return interfaceOrientationMask ?? .portrait
     }
 }
 
@@ -50,7 +51,9 @@ class IRFullViewController: UIViewController {
 class IROrientationObserver {
 
     // MARK: - Public Properties
-    weak var fullScreenContainerView: UIView?
+    weak var fullScreenContainerView: UIView? {
+        return UIApplication.shared.keyWindow
+    }
     weak var containerView: UIView?
     var isFullScreen: Bool = false {
         didSet {
@@ -83,6 +86,7 @@ class IROrientationObserver {
         return view
     }()
     private lazy var customWindow: UIWindow = UIWindow(frame: .zero)
+    private var currentConstraints: [NSLayoutConstraint] = []
 
     // MARK: - Initialization
     init() {
@@ -219,6 +223,53 @@ class IROrientationObserver {
         }
     }
 
+    fileprivate func transform(view: UIView,
+                               superview: UIView,
+                               orientation: UIInterfaceOrientation) {
+        view.transform = CGAffineTransform.transformRotationAngle(for: orientation)
+        
+        if view.superview != superview {
+            superview.addSubview(view)
+            
+            let rotatedWidth: CGFloat
+            let rotatedHeight: CGFloat
+            
+            if isFullScreen {
+                rotatedWidth = superview.frame.height
+                rotatedHeight = superview.frame.width
+                
+                NSLayoutConstraint.deactivate(currentConstraints)
+                
+                let fullscreenConstraints = [
+                    view.centerXAnchor.constraint(equalTo: superview.centerXAnchor),
+                    view.centerYAnchor.constraint(equalTo: superview.centerYAnchor),
+                    view.widthAnchor.constraint(equalToConstant: rotatedWidth),
+                    view.heightAnchor.constraint(equalToConstant: rotatedHeight)
+                ]
+                
+                NSLayoutConstraint.activate(fullscreenConstraints)
+                
+                currentConstraints = fullscreenConstraints
+            } else {
+                rotatedWidth = superview.frame.width
+                rotatedHeight = superview.frame.height
+                
+                NSLayoutConstraint.deactivate(currentConstraints)
+                
+                let nonefullscreenConstraints = [
+                    view.centerXAnchor.constraint(equalTo: superview.centerXAnchor),
+                    view.centerYAnchor.constraint(equalTo: superview.centerYAnchor),
+                    view.widthAnchor.constraint(equalToConstant: rotatedWidth),
+                    view.heightAnchor.constraint(equalToConstant: rotatedHeight)
+                ]
+                
+                NSLayoutConstraint.activate(nonefullscreenConstraints)
+                
+                currentConstraints = nonefullscreenConstraints
+            }
+        }
+    }
+    
     private func normalOrientation(_ orientation: UIInterfaceOrientation, animated: Bool) {
         var superview: UIView?
         var frame: CGRect
@@ -226,26 +277,37 @@ class IROrientationObserver {
         guard let view else { return }
 
         if orientation.isLandscape {
+//            OrientationLock.forcePortrait()
+
             superview = fullScreenContainerView
 
+//            supportInterfaceOrientation = .landscape
+//            let lockVC = IRFullViewController()
+//            lockVC.modalPresentationStyle = .overFullScreen
+//            lockVC.view.isUserInteractionEnabled = false
+//            superview = lockVC.view
+//            UIApplication.shared.keyWindow?.rootViewController?.present(lockVC, animated: false)
+
             /// Ensure the transition isn't from one side of the screen to the other
-            if !isFullScreen {
-                view.frame = view.convert(view.frame, to: superview)
-            }
-            superview?.addSubview(view)
+//            if !isFullScreen {
+//                view.frame = view.convert(view.frame, to: superview)
+//            }
+//            superview?.addSubview(view)
             isFullScreen = true
             orientationWillChange?(self, isFullScreen)
 
-            let fullVC = IRFullViewController()
-            fullVC.interfaceOrientationMask = (orientation == .landscapeLeft) ? .landscapeLeft : .landscapeRight
-            customWindow.rootViewController = fullVC
+//            let fullVC = IRFullViewController()
+//            fullVC.interfaceOrientationMask = (orientation == .landscapeLeft) ? .landscapeLeft : .landscapeRight
+//            customWindow.rootViewController = fullVC
         } else {
+//            OrientationLock.forcePortrait()
+
             isFullScreen = false
             orientationWillChange?(self, isFullScreen)
 
-            let fullVC = IRFullViewController()
-            fullVC.interfaceOrientationMask = .portrait
-            customWindow.rootViewController = fullVC
+//            let fullVC = IRFullViewController()
+//            fullVC.interfaceOrientationMask = .portrait
+//            customWindow.rootViewController = fullVC
 
             if rotateType == .cell {
                 superview = cell?.viewWithTag(playerViewTag)
@@ -262,31 +324,24 @@ class IROrientationObserver {
 
         if animated {
             UIView.animate(withDuration: duration, animations: { [weak self] in
-                guard let self else { return }
-                view.transform = CGAffineTransform.transformRotationAngle(for: orientation)
-                UIView.animate(withDuration: duration, animations: {
-                    view.frame = frame
-                    view.layoutIfNeeded()
-                })
+                guard let self, let superview else { return }
+                transform(view: view, superview: superview, orientation: orientation)
             }, completion: { [weak self] _ in
-                guard let self else { return }
-                superview?.addSubview(view)
-                view.frame = superview?.bounds ?? .zero
+                guard let self, let superview else { return }
+
                 if isFullScreen {
-                    superview?.insertSubview(blackView, belowSubview: view)
-                    blackView.frame = superview?.bounds ?? .zero
+                    superview.insertSubview(blackView, belowSubview: view)
+                    blackView.frame = superview.bounds ?? .zero
                 }
                 orientationDidChanged?(self, isFullScreen)
             })
         } else {
-            view.transform = CGAffineTransform.transformRotationAngle(for: orientation)
-            superview?.addSubview(view)
-            view.frame = superview?.bounds ?? .zero
-            view.layoutIfNeeded()
+            guard let superview else { return }
+            transform(view: view, superview: superview, orientation: orientation)
 
             if isFullScreen {
-                superview?.insertSubview(blackView, belowSubview: view)
-                blackView.frame = superview?.bounds ?? .zero
+                superview.insertSubview(blackView, belowSubview: view)
+                blackView.frame = superview.bounds ?? .zero
             }
 
             orientationDidChanged?(self, isFullScreen)
@@ -340,5 +395,19 @@ extension UIWindow {
             topViewController = tabBarController.selectedViewController
         }
         return topViewController
+    }
+}
+
+class OrientationLock {
+    static func forcePortrait() {
+        UIView.setAnimationsEnabled(false)
+        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+        UIView.setAnimationsEnabled(true)
+    }
+
+    static func forceLandscapeRight() {
+        UIView.setAnimationsEnabled(false)
+        UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+        UIView.setAnimationsEnabled(true)
     }
 }

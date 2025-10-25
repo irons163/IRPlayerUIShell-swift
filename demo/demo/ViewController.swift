@@ -65,4 +65,8 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             break
         }
     }
+
+    override var shouldAutorotate: Bool {
+        return true
+    }
 }
