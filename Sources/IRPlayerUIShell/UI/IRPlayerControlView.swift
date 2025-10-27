@@ -7,7 +7,6 @@
 
 import AVKit
 import AVFoundation
-import IRPlayerSwift
 
 public class IRPlayerControlView: UIView, IRPlayerMediaControl {
 
@@ -81,7 +80,7 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
     /// Button for loading video failure.
     private(set) var failButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("加载失败,点击重试", for: .normal)
+        button.setTitle("Loading failed", for: .normal)
         button.setTitleColor(.white, for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: 14.0)
         button.backgroundColor = UIColor(white: 0, alpha: 0.7)
@@ -328,9 +327,9 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
             failButton.isHidden = true
 
             /// Check for show loading view or not.
-            if (videoPlayer.currentPlayerManager.state == .playing && !prepareShowLoading) {
+            if (videoPlayer.currentPlayerManager.playbackState == .playing && !prepareShowLoading) {
                 activity.startAnimating()
-            } else if ((videoPlayer.currentPlayerManager.state == .playing || videoPlayer.currentPlayerManager.state == .readyToPlay) && prepareShowLoading) {
+            } else if ((videoPlayer.currentPlayerManager.playbackState == .playing || videoPlayer.currentPlayerManager.playbackState == .readyToPlay) && prepareShowLoading) {
                 activity.startAnimating()
             }
         } else if state == .paused {
@@ -359,9 +358,9 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
                 playerController?.currentPlayerManager.view?.backgroundColor = .black
             }
         }
-        if state == .automaticallyPaused && videoPlayer.currentPlayerManager.state == .buffering && !prepareShowLoading {
+        if state == .automaticallyPaused && videoPlayer.currentPlayerManager.playbackState == .buffering && !prepareShowLoading {
             activity.startAnimating()
-        } else if (state == .automaticallyPaused || state == .preparing) && videoPlayer.currentPlayerManager.state == .buffering && prepareShowLoading {
+        } else if (state == .automaticallyPaused || state == .preparing) && videoPlayer.currentPlayerManager.playbackState == .buffering && prepareShowLoading {
             activity.startAnimating()
         } else {
             activity.stopAnimating()
@@ -447,7 +446,7 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
     // MARK: - IRPlayerControlViewDelegate
 
     public func gestureTriggerCondition(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         gestureType: IRGestureType,
         gestureRecognizer: UIGestureRecognizer,
         touch: UITouch
@@ -466,19 +465,13 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
             return landScapeControlView.shouldResponseGesture(withPoint: point, withGestureType: gestureType, touch: touch)
         } else {
             if !customDisablePanMovingDirection {
-//                if player?.scrollView != nil {
-//                    // Avoid conflict with scrollView gestures
-//                    player?.disablePanMovingDirection = .vertical
-//                } else {
-                    // Allow pan gestures
                 playerController?.disablePanMovingDirection = .none
-//                }
             }
             return portraitControlView.shouldResponseGesture(withPoint: point, withGestureType: gestureType, touch: touch)
         }
     }
 
-    @objc public func gestureSingleTapped(_ gestureControl: IRGestureController) {
+    public func gestureSingleTapped(_ gestureControl: IRGestureControlling) {
         guard let playerController else { return }
         if playerController.isSmallFloatViewShow && !playerController.isFullScreen {
             playerController.enterFullScreen(true, animated: true)
@@ -492,7 +485,7 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         }
     }
 
-    @objc public func gestureDoubleTapped(_ gestureControl: IRGestureController) {
+    public func gestureDoubleTapped(_ gestureControl: IRGestureControlling) {
         if playerController?.isFullScreen ?? false {
             landScapeControlView.playOrPause()
         } else {
@@ -500,14 +493,14 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         }
     }
 
-    public func gestureBeganPan(_ gestureControl: IRGestureController, panDirection direction: IRPanDirection, panLocation location: IRPanLocation) {
+    public func gestureBeganPan(_ gestureControl: IRGestureControlling, panDirection direction: IRPanDirection, panLocation location: IRPanLocation) {
         if direction == .horizontal {
             sumTime = playerController?.currentTime ?? 0
         }
     }
 
     public func gestureChangedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation,
         withVelocity velocity: CGPoint
@@ -535,7 +528,7 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
     }
 
     public func gestureEndedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation
     ) {
@@ -557,8 +550,8 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         }
     }
 
-    @objc public func gesturePinched(_ gestureControl: IRGestureController, scale: Float) {
-        playerController?.currentPlayerManager.viewGravityMode = scale > 1 ? .resizeAspectFill : .resizeAspect
+    public func gesturePinched(_ gestureControl: IRGestureControlling, scale: Float) {
+        playerController?.currentPlayerManager.gravityMode = scale > 1 ? .aspectFill : .aspectFill
     }
 
 
@@ -581,11 +574,6 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
             fastImageView.image = IRUtilities.image(named: "IRPlayer_fast_backward")
         }
 
-//        let totalTime = playerController?.totalTime ?? 0
-//        let clampedValue = min(max(totalTime, Double(Int.min)), Double(Int.max))
-//        let totalIntTime = Int(clampedValue.rounded(.down))
-
-
         let totalTime = playerController?.totalTime ?? 0
         let roundedValue = totalTime.rounded(.down)
 
@@ -595,25 +583,16 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         // Convert safely
         let totalIntTime = Int(safeValue)
 
-//        let totalTime = playerController?.totalTime ?? 0
-//        let roundedValue = totalTime.rounded(.down)
-//        let clampedValue = max(Double(Int.min), min(Double(Int.max), roundedValue))
-//        let totalIntTime = Int(clampedValue) // This is now safe
-
         let clampedDraggedTime = min(max(totalTime * value, Double(Int.min)), Double(Int.max))
         let draggedIntTime = Int(clampedDraggedTime.rounded(.down))
 
-//        let draggedTime = Int(min(max((player?.totalTime ?? 0) * value, TimeInterval(Int.min)), TimeInterval(Int.max)))
-//        let totalTime = Int(min(max(player?.totalTime ?? 0, TimeInterval(Int.min)), TimeInterval(Int.max)))
         let draggedTimeStr = IRUtilities.convertTimeSecond(draggedIntTime)
         let totalTimeStr = IRUtilities.convertTimeSecond(totalIntTime)
         fastTimeLabel.text = "\(draggedTimeStr) / \(totalTimeStr)"
 
-        // 更新 slider
         portraitControlView.sliderValueChanged(value: value, currentTimeString: draggedTimeStr)
         landScapeControlView.sliderValueChanged(value, currentTimeString: draggedTimeStr)
 
-        // 延迟隐藏 fastView
         NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(hideFastView), object: nil)
         perform(#selector(hideFastView), with: nil, afterDelay: 0.1)
 
@@ -624,7 +603,6 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         }
     }
 
-    /// 隐藏快进视图
     @objc private func hideFastView() {
         UIView.animate(withDuration: 0.4, animations: {
             self.fastView.transform = .identity
@@ -681,5 +659,20 @@ public class IRPlayerControlView: UIView, IRPlayerMediaControl {
         }) { _ in
             self.bottomProgress.isHidden = true
         }
+    }
+}
+
+public struct IRPlayerProgress: Equatable {
+    public let current: TimeInterval      // 秒
+    public let total: TimeInterval        // 秒
+    public let buffered: TimeInterval     // 秒
+
+    public init(current: TimeInterval, total: TimeInterval, buffered: TimeInterval = 0) {
+        // 合法化（避免 NaN / ∞；並夾在合理範圍）
+        let safeTotal = (total.isFinite && total >= 0) ? total : 0
+        let upper = safeTotal > 0 ? safeTotal : .greatestFiniteMagnitude
+        self.current  = min(max(current, 0), upper)
+        self.total    = safeTotal
+        self.buffered = min(max(buffered, 0), upper)
     }
 }

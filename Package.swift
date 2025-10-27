@@ -16,14 +16,13 @@ let package = Package(
     ],
     dependencies: [
 //        .package(url: "https://github.com/irons163/IRPlayer-swift", from: "0.1.0"),
-        .package(path: "/Users/irons/IRPlayer-swift")
+//        .package(path: "/Users/irons/IRPlayer-swift")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "IRPlayerUIShell",
-            dependencies: [.product(name: "IRPlayer", package: "IRPlayer-swift")]),
+            name: "IRPlayerUIShell"),
         .testTarget(
             name: "IRPlayerUIShellTests",
             dependencies: ["IRPlayerUIShell"]

@@ -6,7 +6,6 @@
 //
 
 import UIKit
-import IRPlayerSwift
 
 class IRPortraitControlView: UIView, IRSliderViewDelegate {
 

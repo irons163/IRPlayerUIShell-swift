@@ -6,7 +6,6 @@
 //
 
 import UIKit
-import IRPlayerSwift
 
 class IRLandScapeControlView: UIView, IRSliderViewDelegate {
 

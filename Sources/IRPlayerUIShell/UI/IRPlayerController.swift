@@ -7,7 +7,6 @@
 
 import Foundation
 import UIKit
-import IRPlayerSwift
 import AVFAudio
 
 @objc public protocol IRPlayerMediaPlayback {}
@@ -24,26 +23,26 @@ public protocol IRPlayerMediaControl {
     func videoPlayerPlayFailed(_ videoPlayer: IRPlayerController, error: Any)
 
     func gestureTriggerCondition(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         gestureType: IRGestureType,
         gestureRecognizer: UIGestureRecognizer,
         touch: UITouch
     ) -> Bool
-    func gestureSingleTapped(_ gestureControl: IRGestureController)
-    func gestureDoubleTapped(_ gestureControl: IRGestureController)
-    func gestureBeganPan(_ gestureControl: IRGestureController, panDirection direction: IRPanDirection, panLocation location: IRPanLocation)
+    func gestureSingleTapped(_ gestureControl: IRGestureControlling)
+    func gestureDoubleTapped(_ gestureControl: IRGestureControlling)
+    func gestureBeganPan(_ gestureControl: IRGestureControlling, panDirection direction: IRPanDirection, panLocation location: IRPanLocation)
     func gestureChangedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation,
         withVelocity velocity: CGPoint
     )
     func gestureEndedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation
     )
-    func gesturePinched(_ gestureControl: IRGestureController, scale: Float)
+    func gesturePinched(_ gestureControl: IRGestureControlling, scale: Float)
 }
 
 extension IRPlayerMediaControl {
@@ -52,26 +51,26 @@ extension IRPlayerMediaControl {
     func videoPlayer(_ videoPlayer: IRPlayerController, loadStateChanged state: IRPlayerLoadState) { }
     func videoPlayerPlayFailed(_ videoPlayer: IRPlayerController, error: Any) { }
     func gestureTriggerCondition(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         gestureType: IRGestureType,
         gestureRecognizer: UIGestureRecognizer,
         touch: UITouch
     ) -> Bool { return false }
-    func gestureSingleTapped(_ gestureControl: IRGestureController) { }
-    func gestureDoubleTapped(_ gestureControl: IRGestureController) { }
-    func gestureBeganPan(_ gestureControl: IRGestureController, panDirection direction: IRPanDirection, panLocation location: IRPanLocation) { }
+    func gestureSingleTapped(_ gestureControl: IRGestureControlling) { }
+    func gestureDoubleTapped(_ gestureControl: IRGestureControlling) { }
+    func gestureBeganPan(_ gestureControl: IRGestureControlling, panDirection direction: IRPanDirection, panLocation location: IRPanLocation) { }
     func gestureChangedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation,
         withVelocity velocity: CGPoint
     ) { }
     func gestureEndedPan(
-        _ gestureControl: IRGestureController,
+        _ gestureControl: IRGestureControlling,
         panDirection direction: IRPanDirection,
         panLocation location: IRPanLocation
     ) { }
-    func gesturePinched(_ gestureControl: IRGestureController, scale: Float) { }
+    func gesturePinched(_ gestureControl: IRGestureControlling, scale: Float) { }
 }
 
 @objc public enum IRPlayerContainerType: Int {
@@ -97,14 +96,91 @@ extension IRPlayerMediaControl {
     case failed
 }
 
-@objc public class IRPlayerControllerNotification: NSObject {}
+public final class IRPlayerControllerNotification {
+
+    public typealias Registrar = IRPlayerControllerNotification
+    public typealias Handler = (_ registrar: Registrar) -> Void
+
+    // 外部在 controller 裡設定這三個回呼
+    public var willResignActive: Handler?
+    public var didBecomeActive: Handler?
+    public var oldDeviceUnavailable: Handler?
+
+    /// 是否已經開始監聽
+    public private(set) var isEnabled: Bool = false
+
+    public init() {}
+
+    deinit { stop() }
+
+    /// 開始監聽系統事件（可重入；只會註冊一次）
+    public func start() {
+        guard !isEnabled else { return }
+        isEnabled = true
+
+        // App 前/後景
+        let nc = NotificationCenter.default
+        let mainQ = OperationQueue.main
+
+        // 將要進入非活躍（例如來電、鎖屏、切到背景前一刻）
+        let t1 = nc.addObserver(forName: UIApplication.willResignActiveNotification,
+                                object: nil, queue: mainQ) { [weak self] _ in
+            guard let self = self else { return }
+            self.willResignActive?(self)
+        }
+
+        // 已重新成為活躍（回到前台或解除中斷）
+        let t2 = nc.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                object: nil, queue: mainQ) { [weak self] _ in
+            guard let self = self else { return }
+            self.didBecomeActive?(self)
+        }
+
+        // 音訊路由改變（耳機拔出等）
+        let t3 = nc.addObserver(forName: AVAudioSession.routeChangeNotification,
+                                object: AVAudioSession.sharedInstance(),
+                                queue: mainQ) { [weak self] note in
+            guard let self = self else { return }
+            // 只處理 .oldDeviceUnavailable（例如耳機被拔掉）
+            if let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+               let reason = AVAudioSession.RouteChangeReason(rawValue: raw),
+               reason == .oldDeviceUnavailable {
+                self.oldDeviceUnavailable?(self)
+            }
+        }
+
+        tokens = [t1, t2, t3]
+    }
+
+    /// 停止監聽（可重入；確保在 deinit 時呼叫）
+    public func stop() {
+        guard isEnabled else { return }
+        isEnabled = false
+        let nc = NotificationCenter.default
+        tokens.forEach { nc.removeObserver($0) }
+        tokens.removeAll()
+    }
+
+    // MARK: - Private
+
+    private var tokens: [NSObjectProtocol] = []
+}
 
 @objc public class IRFloatView: UIView {}
 
-@objc public enum IRDisableGestureTypes: Int {
-    case none
-    case singleTap
-    case doubleTap
+public struct IRDisableGestureTypes: OptionSet {
+    public let rawValue: UInt
+
+    public static let none = IRDisableGestureTypes([])
+    public static let singleTap = IRDisableGestureTypes(rawValue: 1 << 0)
+    public static let doubleTap = IRDisableGestureTypes(rawValue: 1 << 1)
+    public static let pan = IRDisableGestureTypes(rawValue: 1 << 2)
+    public static let pinch = IRDisableGestureTypes(rawValue: 1 << 3)
+    public static let all = IRDisableGestureTypes([.singleTap, .doubleTap, .pan, .pinch])
+
+    public init(rawValue: UInt) {
+        self.rawValue = rawValue
+    }
 }
 
 @objc public enum IRDisablePanMovingDirection: Int {
@@ -121,25 +197,22 @@ extension IRPlayerMediaControl {
     public var containerView: UIView {
         didSet {
             guard containerView != oldValue else { return }
-//            if (self.scrollView) {
-//                self.scrollView.ir_containerView = containerView;
-//            }
             containerView.isUserInteractionEnabled = true
             layoutPlayerSubViews()
         }
     }
 
     /// The current player manager.
-    public var currentPlayerManager: IRPlayerImp {
+    public var currentPlayerManager: IRPlayerManaging {
         didSet {
-            guard currentPlayerManager != oldValue else { return }
+            guard ObjectIdentifier(currentPlayerManager as AnyObject) != ObjectIdentifier(oldValue as AnyObject) else { return }
 
-            if oldValue.state == .readyToPlay {
+            if oldValue.playbackState == .readyToPlay {
                 oldValue.pause()
                 oldValue.view?.removeFromSuperview()
                 orientationObserver.removeDeviceOrientationObserver()
                 if let view = oldValue.view {
-                    gestureControl.removeGesture(to: view)
+                    gestureControl?.removeGesture(from: view)
                 }
             }
 
@@ -157,61 +230,55 @@ extension IRPlayerMediaControl {
     }
 
     func playerManagerCallback() {
-        currentPlayerManager.registerPlayerNotification(
-            target: self,
-            stateAction: #selector(stateAction),
-            progressAction: #selector(progressAction(_:)),
-            playableAction: #selector(playableAction(_:)),
-            errorAction: #selector(errorAction(_:))
-        )
+        currentPlayerManager.playerManagerCallback()
     }
 
     /// The notification manager class.
     public lazy var notification: IRPlayerControllerNotification = {
         let notification = IRPlayerControllerNotification()
 
-        //        notification.willResignActive = { [weak self] registrar in
-        //            guard let self = self else { return }
-        //
-        //            if self.isViewControllerDisappear {
-        //                return
-        //            }
-        //            if self.pauseWhenAppResignActive, self.currentPlayerManager.state == .playing {
-        //                self.pauseByEvent = true
-        //            }
-        //            if self.isFullScreen, !self.isLockedScreen {
-        //                self.orientationObserver.lockedScreen = true
-        //            }
-        //
-        //            UIApplication.shared.keyWindow?.endEditing(true)
-        //
-        //            if !self.pauseWhenAppResignActive {
-        //                UIApplication.shared.beginReceivingRemoteControlEvents()
-        //                try? AVAudioSession.sharedInstance().setActive(true)
-        //            }
-        //        }
-        //
-        //        notification.didBecomeActive = { [weak self] registrar in
-        //            guard let self = self else { return }
-        //
-        //            if self.isViewControllerDisappear {
-        //                return
-        //            }
-        //            if self.pauseByEvent {
-        //                self.pauseByEvent = false
-        //            }
-        //            if self.isFullScreen, !self.isLockedScreen {
-        //                self.orientationObserver.lockedScreen = false
-        //            }
-        //        }
-        //
-        //        notification.oldDeviceUnavailable = { [weak self] registrar in
-        //            guard let self = self else { return }
-        //
-        //            if self.currentPlayerManager.state == .playing {
-        //                self.currentPlayerManager.play()
-        //            }
-        //        }
+        notification.willResignActive = { [weak self] registrar in
+            guard let self = self else { return }
+
+//            if self.isViewControllerDisappear {
+//                return
+//            }
+            if self.pauseWhenAppResignActive, self.currentPlayerManager.playbackState == .playing {
+                self.pauseByEvent = true
+            }
+            if self.isFullScreen, !self.isLockedScreen {
+                self.orientationObserver.lockedScreen = true
+            }
+
+            UIApplication.shared.keyWindow?.endEditing(true)
+
+            if !self.pauseWhenAppResignActive {
+                UIApplication.shared.beginReceivingRemoteControlEvents()
+                try? AVAudioSession.sharedInstance().setActive(true)
+            }
+        }
+
+        notification.didBecomeActive = { [weak self] registrar in
+            guard let self = self else { return }
+
+//            if self.isViewControllerDisappear {
+//                return
+//            }
+            if self.pauseByEvent {
+                self.pauseByEvent = false
+            }
+            if self.isFullScreen, !self.isLockedScreen {
+                self.orientationObserver.lockedScreen = false
+            }
+        }
+
+        notification.oldDeviceUnavailable = { [weak self] registrar in
+            guard let self = self else { return }
+
+            if self.currentPlayerManager.playbackState == .playing {
+                self.currentPlayerManager.play()
+            }
+        }
 
         return notification
     }()
@@ -219,7 +286,7 @@ extension IRPlayerMediaControl {
     /// The current player controller is disappear, not dealloc
     public var viewControllerDisappear: Bool = false
 
-    public var pauseWhenAppResignActive: Bool = false
+    public var pauseWhenAppResignActive: Bool = true
 
     public var customAudioSession: Bool = false
 
@@ -261,50 +328,54 @@ extension IRPlayerMediaControl {
     public var assetURLs: [URL]?
 
     /// The gesture types that the player not support.
-    public var disableGestureTypes: IRPlayerSwift.IRDisableGestureTypes = .none
+    public var disableGestureTypes: IRDisableGestureTypes = .none
 
-    /// An instance of IRPlayerGestureControl.
-    public lazy var gestureControl: IRGestureController = {
-
-        let gestureControl = IRGestureController()
-
-        gestureControl.triggerCondition = { [weak self] control, type, gesture, touch in
-            guard let self = self else { return false }
-            return controlView?.gestureTriggerCondition(control, gestureType: type, gestureRecognizer: gesture, touch: touch) ?? false
+    /// An instance of IRGestureControlling.
+    public var gestureControl: (any IRGestureControlling)? {
+        willSet {
+            // 先把舊的從 playerView 拔掉，避免重複加
+            if let pv = currentPlayerManager.view {
+                gestureControl?.removeGesture(from: pv)
+            }
         }
+        didSet {
+            guard let gestureControl else { return }
+            gestureControl.triggerCondition = { [weak self] control, type, gesture, touch in
+                guard let self = self else { return false }
+                return controlView?.gestureTriggerCondition(control, gestureType: type, gestureRecognizer: gesture, touch: touch) ?? false
+            }
 
-        gestureControl.singleTapped = { [weak self] control in
-            guard let self = self else { return }
-            controlView?.gestureSingleTapped(control)
+            gestureControl.singleTapped = { [weak self] control in
+                guard let self = self else { return }
+                controlView?.gestureSingleTapped(control)
+            }
+
+            gestureControl.doubleTapped = { [weak self] control in
+                guard let self = self else { return }
+                controlView?.gestureDoubleTapped(control)
+            }
+
+            gestureControl.beganPan = { [weak self] control, direction, location in
+                guard let self = self else { return }
+                controlView?.gestureBeganPan(control, panDirection: direction, panLocation: location)
+            }
+
+            gestureControl.changedPan = { [weak self] control, direction, location, velocity in
+                guard let self = self else { return }
+                controlView?.gestureChangedPan(control, panDirection: direction, panLocation: location, withVelocity: velocity)
+            }
+
+            gestureControl.endedPan = { [weak self] control, direction, location in
+                guard let self = self else { return }
+                controlView?.gestureEndedPan(control, panDirection: direction, panLocation: location)
+            }
+
+            gestureControl.pinched = { [weak self] control, scale in
+                guard let self = self else { return }
+                controlView?.gesturePinched(control, scale: Float(scale))
+            }
         }
-
-        gestureControl.doubleTapped = { [weak self] control in
-            guard let self = self else { return }
-            controlView?.gestureDoubleTapped(control)
-        }
-
-        gestureControl.beganPan = { [weak self] control, direction, location in
-            guard let self = self else { return }
-            controlView?.gestureBeganPan(control, panDirection: direction, panLocation: location)
-        }
-
-        gestureControl.changedPan = { [weak self] control, direction, location, velocity in
-            guard let self = self else { return }
-            controlView?.gestureChangedPan(control, panDirection: direction, panLocation: location, withVelocity: velocity)
-        }
-
-        gestureControl.endedPan = { [weak self] control, direction, location in
-            guard let self = self else { return }
-            controlView?.gestureEndedPan(control, panDirection: direction, panLocation: location)
-        }
-
-        gestureControl.pinched = { [weak self] control, scale in
-            guard let self = self else { return }
-            controlView?.gesturePinched(control, scale: Float(scale))
-        }
-
-        return gestureControl
-    }()
+    }
 
     /// The pan gesture moving direction that the player not support.
     public var disablePanMovingDirection: IRDisablePanMovingDirection = .none
@@ -351,7 +422,7 @@ extension IRPlayerMediaControl {
        - containerView: The view to display the video frames.
      - Returns: An instance of `IRPlayerController`.
      */
-    public static func playerWith(playerManager: IRPlayerImp, containerView: UIView) -> IRPlayerController {
+    public static func playerWith(playerManager: IRPlayerManaging, containerView: UIView) -> IRPlayerController {
         return IRPlayerController(playerManager: playerManager, containerView: containerView)
     }
 
@@ -362,7 +433,7 @@ extension IRPlayerMediaControl {
        - playerManager: The player manager that conforms to `IRPlayerMediaPlayback`.
        - containerView: The view to display the video frames.
      */
-    public init(playerManager: IRPlayerImp, containerView: UIView) {
+    public init(playerManager: IRPlayerManaging, containerView: UIView) {
         self.currentPlayerManager = playerManager
         self.containerView = containerView
         self.containerView.isUserInteractionEnabled = true
@@ -371,14 +442,15 @@ extension IRPlayerMediaControl {
         self.isSmallFloatViewShow = false
         super.init()
         handleCurrentPlayerManagerChange()
+        notification.start()
     }
 
     private func handleCurrentPlayerManagerChange() {
         if let view = currentPlayerManager.view {
             view.isHidden = true
-            if let glView = currentPlayerManager.view as? IRGLView {
-                gestureControl.disableTypes = disableGestureTypes
-                gestureControl.addGesture(to: glView)
+            if let glView = currentPlayerManager.view {
+                gestureControl?.disableTypes = disableGestureTypes
+                gestureControl?.addGesture(to: glView)
             }
             playerManagerCallback()
             orientationObserver.updateRotateView(view, containerView: containerView)
@@ -475,7 +547,7 @@ extension IRPlayerMediaControl {
      Stops the player and removes the player view.
      */
     public func stop() {
-//        notification.removeNotification()
+        notification.stop()
         orientationObserver.removeDeviceOrientationObserver()
 
         if isFullScreen && exitFullScreenWhenStop {
@@ -484,10 +556,6 @@ extension IRPlayerMediaControl {
 
         currentPlayerManager.pause()
         currentPlayerManager.view?.removeFromSuperview()
-
-//        if let scrollView = scrollView {
-//            scrollView.ir_stopPlay = true
-//        }
     }
 
     /**
@@ -632,46 +700,9 @@ extension IRPlayerMediaControl {
         orientationObserver.removeDeviceOrientationObserver()
     }
 
-    @objc private func stateAction(_ notification: Notification) {
-        dealWithNotification(notification, player: currentPlayerManager)
-    }
-
-    @objc private func progressAction(_ notification: Notification) {
-        if let userInfo = notification.userInfo {
-            let progress = IRProgress.progress(fromUserInfo: userInfo)
-            controlView?.videoPlayer(self, currentTime: progress.current, totalTime: progress.total)
-        }
-    }
-
-    private func timeString(fromSeconds seconds: CGFloat) -> String {
-        let minutes = Int(seconds) / 60
-        let seconds = Int(seconds) % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-
-    @objc private func playableAction(_ notification: Notification) {
-        if let userInfo = notification.userInfo {
-            let playable = IRPlayable.playable(fromUserInfo: userInfo)
-            print("Playable time: \(playable.current)")
-        }
-    }
-
-    @objc private func errorAction(_ notification: Notification) {
-        if let userInfo = notification.userInfo {
-            let error = IRError.error(fromUserInfo: userInfo)
-            print("Player did error: \(error.error)")
-        }
-    }
-
-    private func dealWithNotification(_ notification: Notification, player: IRPlayerImp) {
-        guard let userInfo = notification.userInfo else {
-            return
-        }
-
-        let state = IRState.state(fromUserInfo: userInfo)
-
+    public func dealWithNotification(state: IRPlaybackState) {
         var text: String
-        switch state.current {
+        switch state {
         case .none:
             text = "None"
 
@@ -681,14 +712,10 @@ extension IRPlayerMediaControl {
             currentPlayerManager.view?.isHidden = false
             addDeviceOrientationObserver()
 
-//            if let scrollView = scrollView {
-//                scrollView.ir_stopPlay = false
-//            }
-
             layoutPlayerSubViews()
 
             // Notify control view about prepareToPlay
-            if let url = player.contentURL {
+            if let url = currentPlayerManager.contentURL {
                 controlView?.videoPlayer(self, prepareToPlay: url)
             }
 
@@ -711,7 +738,7 @@ extension IRPlayerMediaControl {
                 pauseByEvent = true
             }
 
-            player.play()
+            currentPlayerManager.play()
 
         case .playing:
             text = "Playing"
@@ -725,20 +752,15 @@ extension IRPlayerMediaControl {
         case .finished:
             text = "Finished"
 
-        case .failed:
+        case .failed(let error):
             text = "Error"
 
-            // Notify control view about playFailed
-            if let userInfo = notification.userInfo {
-                let error = IRError.error(fromUserInfo: userInfo)
-                controlView?.videoPlayerPlayFailed(self, error: error)
-            }
+            controlView?.videoPlayerPlayFailed(self, error: error)
 
         @unknown default:
             text = "Unknown State"
         }
     }
-
 }
 
 @propertyWrapper

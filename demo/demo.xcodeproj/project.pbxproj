@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B51C7FE62EAFAAA80026DA13 /* IRPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = B51C7FE52EAFAAA80026DA13 /* IRPlayer */; };
 		B5C84B462D425D65001A9402 /* IRPlayerUIShell in Frameworks */ = {isa = PBXBuildFile; productRef = B5C84B452D425D65001A9402 /* IRPlayerUIShell */; };
 		B5C84B4B2D426BD2001A9402 /* SDWebImage in Frameworks */ = {isa = PBXBuildFile; productRef = B5C84B4A2D426BD2001A9402 /* SDWebImage */; };
 /* End PBXBuildFile section */
@@ -71,6 +72,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B5C84B4B2D426BD2001A9402 /* SDWebImage in Frameworks */,
+				B51C7FE62EAFAAA80026DA13 /* IRPlayer in Frameworks */,
 				B5C84B462D425D65001A9402 /* IRPlayerUIShell in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -134,6 +136,7 @@
 			packageProductDependencies = (
 				B5C84B452D425D65001A9402 /* IRPlayerUIShell */,
 				B5C84B4A2D426BD2001A9402 /* SDWebImage */,
+				B51C7FE52EAFAAA80026DA13 /* IRPlayer */,
 			);
 			productName = demo;
 			productReference = B5C84B102D425D35001A9402 /* demo.app */;
@@ -220,6 +223,7 @@
 			packageReferences = (
 				B5C84B442D425D65001A9402 /* XCLocalSwiftPackageReference "../../IRPlayerUIShell" */,
 				B5C84B492D426BD2001A9402 /* XCRemoteSwiftPackageReference "SDWebImage" */,
+				B51C7FE42EAFAAA80026DA13 /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B5C84B112D425D35001A9402 /* Products */;
@@ -584,6 +588,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		B51C7FE42EAFAAA80026DA13 /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../IRPlayer-swift";
+		};
 		B5C84B442D425D65001A9402 /* XCLocalSwiftPackageReference "../../IRPlayerUIShell" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../IRPlayerUIShell;
@@ -602,6 +610,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B51C7FE52EAFAAA80026DA13 /* IRPlayer */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = IRPlayer;
+		};
 		B5C84B452D425D65001A9402 /* IRPlayerUIShell */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = IRPlayerUIShell;

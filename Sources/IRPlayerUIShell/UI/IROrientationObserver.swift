@@ -6,7 +6,6 @@
 //
 
 import UIKit
-import IRPlayerSwift
 
 // MARK: - Full Screen Mode
 public enum IRFullScreenMode: UInt {
