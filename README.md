@@ -21,11 +21,8 @@
 - Make a framework for this project.
 
 ## Install
-### Git
-- Git clone this project.
-
-### Cocoapods
-- Not support yet.
+### SPM
+- Add package: `https://github.com/irons163/IRPlayerUIShell-swift`
 
 ## Usage
 
