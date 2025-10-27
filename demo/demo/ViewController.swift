@@ -33,12 +33,21 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 6
+        return 1
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-        cell.textLabel?.text = "Q"
+        switch (indexPath.row) {
+        case 0:
+        cell.textLabel?.text = "Single Player"
+        case 1:
+        cell.textLabel?.text = "Multi Players"
+        case 2:
+        cell.textLabel?.text = "Multi Players - FishEye"
+        default:
+            break
+        }
         return cell
     }
 
@@ -52,7 +61,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             let player = IRPlayerUIShellViewController()
             navigationController?.pushViewController(player, animated: true)
         case 1: break
-//            let player = IRPlayerViewController()
+//            let player = IRPlayerUIShellViewController()
 //            player.displayMode = .quadMode
 //            navigationController?.pushViewController(player, animated: true)
         case 2: break
