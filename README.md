@@ -33,53 +33,75 @@
 - See `IRPlayerUIShellViewController` for demo.
 
 - Create a [IRPlayer](https://github.com/irons163/IRPlayer-swift) instance.
-```obj-c
-self.playerImp = [IRPlayerImp player];
-self.playerImp.decoder = [IRPlayerDecoder FFmpegDecoder];
-[self.playerImp replaceVideoWithURL:VIDEO_URL];
+```swift
+import IRPlayer
+
+// Create the decoder and PlayerImp
+let playerImp: IRPlayerImp = {
+    let p = IRPlayerImp.player()
+    p.decoder = IRPlayerDecoder.ffmpegDecoder()
+    // Single video example
+    if let url = URL(string: "https://example.com/video.mp4") {
+        p.replaceVideo(with: url)
+    }
+    return p
+}()
 ```
 
-- Create a IRPlayerController instance, set the player and containerView while init, and then set the controlView.
-```obj-c
-self.player = [IRPlayerController playerWithPlayerManager:self.playerImp containerView:self.containerView];
-self.player.controlView = self.controlView;
+- Create `IRPlayerController` with `playerManager` and `containerView`, then set the `controlView`:
+```swift
+let containerView = UIView()
+let controlView = IRPlayerControlView() // Adjust to your concrete control view type
+
+let player = IRPlayerController.player(withPlayerManager: playerImp,
+                                       containerView: containerView)
+player.controlView = controlView
 ```
 
-- Set the video urls, and then the first video will play!
-```obj-c
-self.player.assetURLs = self.assetURLs;
+- Provide multiple video URLs — the first one will auto‑play:
+```swift
+let assetURLs: [URL] = [
+    URL(string: "https://example.com/video1.mp4")!,
+    URL(string: "https://example.com/video2.mp4")!
+]
+player.assetURLs = assetURLs
 ```
 
-### Advanced settings
-- If app is in the background, still play continue.
-```obj-c
-self.player.pauseWhenAppResignActive = NO;
+## Advanced Settings
+
+- Keep playing when the app resigns active (background):
+```swift
+player.pauseWhenAppResignActive = false
 ```
 
-- Listener for orientation change.
-```obj-c
-@weakify(self)
-self.player.orientationWillChange = ^(IRPlayerController * _Nonnull player, BOOL isFullScreen) {
-    @strongify(self)
-    [self setNeedsStatusBarAppearanceUpdate];
-};
+- Listen for orientation/fullscreen changes:
+```swift
+player.orientationWillChange = { [weak self] (_, _) in
+    self?.setNeedsStatusBarAppearanceUpdate()
+}
 ```
 
-- Listener for player go end.
-```obj-c
-    self.player.playerDidToEnd = ^(id  _Nonnull asset) {
-        @strongify(self)
-        [self.player.currentPlayerManager pause];
-        [self.player.currentPlayerManager play];
-        
-        [self.player playTheNext];
-        if (!self.player.isLastAssetURL) {
-        NSString *title = [NSString stringWithFormat:@"title:%zd",self.player.currentPlayIndex];
-            [self.controlView showTitle:title coverURLString:kVideoCover fullScreenMode:IRFullScreenModeLandscape];
-        } else {
-            [self.player stop];
-        }
-    };
+- Listen for when the player reaches the end of the current item:
+```swift
+player.playerDidToEnd = { [weak player, weak controlView] _ in
+    guard let player, let controlView else { return }
+
+    // Pause then play again (retains your original behavior)
+    player.currentPlayerManager.pause()
+    player.currentPlayerManager.play()
+
+    // Play next item
+    player.playTheNext()
+
+    if !player.isLastAssetURL {
+        let title = "title:\\(player.currentPlayIndex)"
+        controlView.showTitle(title,
+                              coverURLString: kVideoCover,
+                              fullScreenMode: .landscape)
+    } else {
+        player.stop()
+    }
+}
 ```
 
 - More, coming soon...
