@@ -95,6 +95,10 @@ class IRPlayerUIShellViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         player.viewControllerDisappear = true
+        if isMovingFromParent || isBeingDismissed {
+            player.stop()
+            NotificationCenter.default.removeObserver(self)
+        }
     }
 
     override func viewWillLayoutSubviews() {
