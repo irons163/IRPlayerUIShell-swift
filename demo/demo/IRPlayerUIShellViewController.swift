@@ -22,6 +22,7 @@ class IRPlayerUIShellViewController: UIViewController {
     // MARK: - Properties
 
     private var playerImp: IRPlayerImp!
+    private var playerManager: IRPlayerManagerAdapter!
     private var player: IRPlayerController!
     
     private lazy var containerView: UIImageView = {
@@ -122,7 +123,7 @@ class IRPlayerUIShellViewController: UIViewController {
     }
 
     @objc private func stateAction(_ notification: Notification) {
-        dealWithNotification(notification, player: playerImp)
+        dealWithNotification(notification)
     }
 
     private func timeString(fromSeconds seconds: CGFloat) -> String {
@@ -145,7 +146,7 @@ class IRPlayerUIShellViewController: UIViewController {
         }
     }
 
-    private func dealWithNotification(_ notification: Notification, player: IRPlayerManaging) {
+    private func dealWithNotification(_ notification: Notification) {
         guard let userInfo = notification.userInfo else {
             return
         }
@@ -176,20 +177,20 @@ class IRPlayerUIShellViewController: UIViewController {
 
     private func setupStaticURLs() {
         playerImp = IRPlayerImp.player()
-        playerImp.delegate = self
         playerImp.viewTapAction = { player, view in
             print("Player display view did click!")
         }
         playerImp.decoder = IRPlayerDecoder.FFmpegDecoder()
         if let normalVideoPath = Bundle.main.path(forResource: "i-see-fire", ofType: "mp4") {
             let normalVideoURL = URL(fileURLWithPath: normalVideoPath)
-            playerImp.replaceVideoWithURL(contentURL: normalVideoURL)
+            playerImp.replaceVideoWithURL(contentURL: normalVideoURL as NSURL)
         }
+        registerPlayerNotification()
     }
 
     private func setupPlayer() {
-        player = IRPlayerController(playerManager: playerImp, containerView: containerView)
-        player.gestureControl = IRGestureAdapter(playerImp.gestureControl!)
+        playerManager = IRPlayerManagerAdapter(playerImp: playerImp)
+        player = IRPlayerController(playerManager: playerManager, containerView: containerView)
         player.controlView = controlView
         player.pauseWhenAppResignActive = true
 
@@ -268,7 +269,7 @@ class IRPlayerUIShellViewController: UIViewController {
     }
 }
 
-extension IRPlayerUIShellViewController: IRPlayerManagingDelegate {
+extension IRPlayerUIShellViewController {
 
     func registerPlayerNotification() {
         playerImp.registerPlayerNotification(
@@ -282,235 +283,123 @@ extension IRPlayerUIShellViewController: IRPlayerManagingDelegate {
 
 }
 
-public protocol IRPlayerManagingDelegate: AnyObject {
-    func registerPlayerNotification()
-}
+final class IRPlayerManagerAdapter: NSObject, IRPlayerManaging {
+    private let playerImp: IRPlayerImp
 
-// 非泛型弱盒，專門拿來做 associated object 的弱引用
-private final class WeakAnyBox {
-    weak var value: AnyObject?
-    init(_ value: AnyObject?) { self.value = value }
-}
+    private(set) var playbackState: IRPlaybackState = .none
+    private(set) var progress: TimeInterval = 0
+    private(set) var playableTime: TimeInterval = 0
 
-private var kIRPMDelegateKey: UInt8 = 0
+    init(playerImp: IRPlayerImp) {
+        self.playerImp = playerImp
+        super.init()
+        playerImp.registerPlayerNotification(
+            target: self,
+            stateAction: #selector(handleState(_:)),
+            progressAction: #selector(handleProgress(_:)),
+            playableAction: #selector(handlePlayable(_:)),
+            errorAction: #selector(handleError(_:))
+        )
+    }
 
-extension IRPlayerImp { // ← 前提：IRPlayerImp 是 class，且可用 ObjC runtime
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
-    public var delegate: (any IRPlayerManagingDelegate)? {
+    var contentURL: URL? {
+        playerImp.contentURL as URL?
+    }
+
+    var view: UIView? {
+        playerImp.view
+    }
+
+    var gravityMode: IRViewGravity {
         get {
-            (objc_getAssociatedObject(self, &kIRPMDelegateKey) as? WeakAnyBox)?
-                .value as? IRPlayerManagingDelegate
-        }
-        set {
-            // 注意：這裡轉成 AnyObject? 放到弱盒，避免 'any 協議' + 泛型推斷的報錯
-            let box = WeakAnyBox(newValue as AnyObject?)
-            objc_setAssociatedObject(self, &kIRPMDelegateKey, box, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        }
-    }
-}
-
-extension IRPlayerImp: @retroactive IRPlayerManaging {
-
-    public func replaceVideoWithURL(contentURL: URL?) {
-        self.replaceVideoWithURL(contentURL: contentURL, videoType: .normal)
-    }
-
-    public func playerManagerCallback() {
-        delegate?.registerPlayerNotification()
-    }
-
-    public var playbackState: IRPlaybackState {
-        switch self.state {
-        case .readyToPlay:  return .readyToPlay
-        case .playing:      return .playing
-        case .failed:       return .failed(error: NSError())
-        case .none:
-            return .none
-        case .buffering:
-            return .buffering
-        case .suspend:
-            return .suspend
-        case .finished:
-            return .finished
-        @unknown default:   return .unknown
-        }
-    }
-
-    // MARK: - Gravity mapping
-
-    public var gravityMode: IRViewGravity {
-        get {
-            switch self.viewGravityMode {            // ← IRPlayerSwift.IRGravityMode
-            case .resize:           return .resize
-            case .resizeAspect:     return .aspect
+            switch playerImp.viewGravityMode {
+            case .resize: return .resize
+            case .resizeAspect: return .aspect
             case .resizeAspectFill: return .aspectFill
-            @unknown default:       return .aspect
+            @unknown default: return .aspect
             }
         }
         set {
-            let mapped: IRGravityMode
             switch newValue {
-            case .resize:      mapped = .resize
-            case .aspect:      mapped = .resizeAspect
-            case .aspectFill:  mapped = .resizeAspectFill
+            case .resize: playerImp.viewGravityMode = .resize
+            case .aspect: playerImp.viewGravityMode = .resizeAspect
+            case .aspectFill: playerImp.viewGravityMode = .resizeAspectFill
             }
-            self.viewGravityMode = mapped            // 實際套到 IRPlayerImp
         }
     }
-}
 
-// ==== 假設 SDK 的型別（請對應你實際 SDK 名稱）====
-public typealias SDKGestureController          = IRGestureControllerProtocol
-public typealias SDKGestureType                = IRPlayerSwift.IRGestureType
-public typealias SDKDisableGestureTypes        = IRPlayerSwift.IRDisableGestureTypes
-public typealias SDKDisablePanMovingDirection  = IRPlayerSwift.IRDisablePanMovingDirection
-public typealias SDKPanDirection               = IRPlayerSwift.IRPanDirection
-public typealias SDKPanLocation                = IRPlayerSwift.IRPanLocation
+    var duration: TimeInterval {
+        playerImp.duration
+    }
 
-// ==== 你的介面層型別（在 IRPlayerUIShell / 協議層）====
-public typealias MyGestureType               = IRPlayerUIShell.IRGestureType
-public typealias MyDisableGestureTypes       = IRPlayerUIShell.IRDisableGestureTypes
-public typealias MyDisablePanMovingDirection = IRPlayerUIShell.IRDisablePanMovingDirection
-public typealias MyPanDirection              = IRPlayerUIShell.IRPanDirection
-public typealias MyPanLocation               = IRPlayerUIShell.IRPanLocation
+    var playableBufferInterval: TimeInterval {
+        playableTime
+    }
 
-// ==== 映射（SDK <-> 我方）====
-private extension MyGestureType {
-    init(_ s: SDKGestureType) {
-        switch s {
-        case .singleTap: self = .singleTap
-        case .doubleTap: self = .doubleTap
-        case .pan:       self = .pan
-        case .pinch:     self = .pinch
-        case .unknown: self = .pan
-        @unknown default: self = .pan
+    func play() {
+        playerImp.play()
+    }
+
+    func pause() {
+        playerImp.pause()
+    }
+
+    func replaceVideoWithURL(contentURL: URL?) {
+        playerImp.replaceVideoWithURL(contentURL: contentURL as NSURL?, videoType: .normal)
+    }
+
+    func seekToTime(time: TimeInterval, completeHandler: ((Bool) -> Void)?) {
+        playerImp.seekToTime(time: time, completeHandler: completeHandler)
+    }
+
+    func playerManagerCallback() {
+        // Notifications are already registered in init.
+    }
+
+    @objc private func handleState(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+        let state = IRState.state(fromUserInfo: userInfo)
+        switch state.current {
+        case .none:
+            playbackState = .none
+        case .buffering:
+            playbackState = .buffering
+        case .readyToPlay:
+            playbackState = .readyToPlay
+        case .playing:
+            playbackState = .playing
+        case .suspend:
+            playbackState = .suspend
+        case .finished:
+            playbackState = .finished
+        case .failed:
+            if let error = playerImp.error?.error {
+                playbackState = .failed(error: error)
+            } else {
+                playbackState = .failed(error: NSError(domain: "IRPlayer", code: -1))
+            }
         }
     }
-}
-private extension MyPanDirection {
-    init(_ s: SDKPanDirection) {
-        self = (s == .horizontal) ? .horizontal : .vertical
-    }
-}
-private extension MyPanLocation {
-    init(_ s: SDKPanLocation) {
-        self = (s == .left) ? .left : .right
-    }
-}
 
-// 如果兩邊是 OptionSet，需要做逐項對應；下面示意常見 case
-private extension MyDisableGestureTypes {
-    init(_ s: SDKDisableGestureTypes) {
-        var r: MyDisableGestureTypes = .none
-        if s.contains(.singleTap)  { r.insert(.singleTap) }
-        if s.contains(.doubleTap)  { r.insert(.doubleTap) }
-        if s.contains(.pan)        { r.insert(.pan) }
-        if s.contains(.pinch)      { r.insert(.pinch) }
-        self = r
-    }
-}
-private extension SDKDisableGestureTypes {
-    init(_ m: MyDisableGestureTypes) {
-        var r: SDKDisableGestureTypes = .none
-        if m.contains(.singleTap)  { r.insert(.singleTap) }
-        if m.contains(.doubleTap)  { r.insert(.doubleTap) }
-        if m.contains(.pan)        { r.insert(.pan) }
-        if m.contains(.pinch)      { r.insert(.pinch) }
-        self = r
-    }
-}
-private extension MyDisablePanMovingDirection {
-    init(_ s: SDKDisablePanMovingDirection) {
-        switch s {
-        case .none:       self = .none
-        case .horizontal: self = .horizontal
-        case .vertical:   self = .vertical
-        default:          self = .none
-        }
-    }
-}
-private extension SDKDisablePanMovingDirection {
-    init(_ m: MyDisablePanMovingDirection) {
-        switch m {
-        case .none:       self = .none
-        case .horizontal: self = .horizontal
-        case .vertical:   self = .vertical
-        }
-    }
-}
-
-// ==== Adapter 本體 ====
-public final class IRGestureAdapter: IRGestureControlling {
-
-    private let sdk: SDKGestureController
-    private weak var hostView: UIView?
-
-    // Inputs
-    public var disableTypes: MyDisableGestureTypes {
-        get { MyDisableGestureTypes(sdk.disableTypes) }
-        set { sdk.disableTypes = SDKDisableGestureTypes(newValue) }
-    }
-    public var disablePanMovingDirection: MyDisablePanMovingDirection {
-        get { MyDisablePanMovingDirection((sdk as? IRGestureController)?.disablePanMovingDirection ?? .none) }
-        set { (sdk as? IRGestureController)?.disablePanMovingDirection = SDKDisablePanMovingDirection(newValue) }
+    @objc private func handleProgress(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+        let value = IRProgress.progress(fromUserInfo: userInfo)
+        progress = value.current
     }
 
-    public var triggerCondition: ((_ control: IRGestureControlling,
-                                   _ type: MyGestureType,
-                                   _ gesture: UIGestureRecognizer,
-                                   _ point: UITouch) -> Bool)? {
-        didSet { hookTriggerCondition() }
+    @objc private func handlePlayable(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+        let value = IRPlayable.playable(fromUserInfo: userInfo)
+        playableTime = value.current
     }
 
-    // Outputs
-    public var singleTapped: ((_ control: IRGestureControlling) -> Void)? {
-        didSet { sdk.singleTapped = { [weak self] _ in guard let self else { return }; self.singleTapped?(self) } }
-    }
-    public var doubleTapped: ((_ control: IRGestureControlling) -> Void)? {
-        didSet { sdk.doubleTapped = { [weak self] _ in guard let self else { return }; self.doubleTapped?(self) } }
-    }
-    public var beganPan: ((_ control: IRGestureControlling, _ direction: MyPanDirection, _ location: MyPanLocation) -> Void)? {
-        didSet { sdk.beganPan = { [weak self] _, d, l in guard let self else { return }
-            self.beganPan?(self, MyPanDirection(d), MyPanLocation(l))
-        } }
-    }
-    public var changedPan: ((_ control: IRGestureControlling, _ direction: MyPanDirection, _ location: MyPanLocation, _ velocity: CGPoint) -> Void)? {
-        didSet { sdk.changedPan = { [weak self] _, d, l, v in guard let self else { return }
-            self.changedPan?(self, MyPanDirection(d), MyPanLocation(l), v)
-        } }
-    }
-    public var endedPan: ((_ control: IRGestureControlling, _ direction: MyPanDirection, _ location: MyPanLocation) -> Void)? {
-        didSet { sdk.endedPan = { [weak self] _, d, l in guard let self else { return }
-            self.endedPan?(self, MyPanDirection(d), MyPanLocation(l))
-        } }
-    }
-    public var pinched: ((_ control: IRGestureControlling, _ scale: CGFloat) -> Void)? {
-        didSet { sdk.pinched = { [weak self] _, s in guard let self else { return }; self.pinched?(self, s) } }
-    }
-
-    // Lifecycle
-    public init(_ backend: IRGestureControllerProtocol) {
-        self.sdk = backend
-        self.triggerCondition = nil
-        hookTriggerCondition() // 先橋一次，避免外部忘了設
-    }
-
-    // Attach / Detach
-    public func addGesture(to view: UIView) {
-        hostView = view
-        sdk.addGesture(to: view)
-    }
-    public func removeGesture(from view: UIView) {
-        if hostView === view { hostView = nil }
-        sdk.removeGesture(to: view)
-    }
-
-    // MARK: - Private
-    private func hookTriggerCondition() {
-        sdk.triggerCondition = { [weak self] _, sdkType, g, touch in
-            guard let self, let v = self.hostView else { return true }
-//            let p = (g.numberOfTouches > 0) ? g.location(ofTouch: 0, in: v) : g.location(in: v)
-            return self.triggerCondition?(self, MyGestureType(sdkType), g, touch) ?? true
-        }
+    @objc private func handleError(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+        let value = IRError.error(fromUserInfo: userInfo)
+        playbackState = .failed(error: value.error)
     }
 }
