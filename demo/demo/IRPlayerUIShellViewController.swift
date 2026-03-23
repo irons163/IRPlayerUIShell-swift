@@ -191,6 +191,10 @@ class IRPlayerUIShellViewController: UIViewController {
     private func setupPlayer() {
         playerManager = IRPlayerManagerAdapter(playerImp: playerImp)
         player = IRPlayerController(playerManager: playerManager, containerView: containerView)
+        player.gestureControl = IRGestureAdapter()
+        if let playerView = player.currentPlayerManager.view {
+            player.gestureControl?.addGesture(to: playerView)
+        }
         player.controlView = controlView
         player.pauseWhenAppResignActive = true
 
@@ -401,5 +405,146 @@ final class IRPlayerManagerAdapter: NSObject, IRPlayerManaging {
         guard let userInfo = notification.userInfo else { return }
         let value = IRError.error(fromUserInfo: userInfo)
         playbackState = .failed(error: value.error)
+    }
+}
+
+final class IRGestureAdapter: NSObject, IRGestureControlling, UIGestureRecognizerDelegate {
+    var disableTypes: IRDisableGestureTypes = .none
+    var disablePanMovingDirection: IRDisablePanMovingDirection = .none
+    var triggerCondition: ((_ control: any IRGestureControlling, _ type: IRGestureType, _ gesture: UIGestureRecognizer, _ point: UITouch) -> Bool)?
+
+    var singleTapped: ((_ control: any IRGestureControlling) -> Void)?
+    var doubleTapped: ((_ control: any IRGestureControlling) -> Void)?
+    var beganPan: ((_ control: any IRGestureControlling, _ direction: IRPanDirection, _ location: IRPanLocation) -> Void)?
+    var changedPan: ((_ control: any IRGestureControlling, _ direction: IRPanDirection, _ location: IRPanLocation, _ velocity: CGPoint) -> Void)?
+    var endedPan: ((_ control: any IRGestureControlling, _ direction: IRPanDirection, _ location: IRPanLocation) -> Void)?
+    var pinched: ((_ control: any IRGestureControlling, _ scale: CGFloat) -> Void)?
+
+    private weak var hostView: UIView?
+    private weak var singleTapGR: UITapGestureRecognizer?
+    private weak var doubleTapGR: UITapGestureRecognizer?
+    private weak var panGR: UIPanGestureRecognizer?
+    private weak var pinchGR: UIPinchGestureRecognizer?
+
+    private var touchCache: [ObjectIdentifier: UITouch] = [:]
+
+    func addGesture(to view: UIView) {
+        removeGesture(from: view)
+        hostView = view
+        view.isUserInteractionEnabled = true
+
+        let single = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap(_:)))
+        single.numberOfTapsRequired = 1
+        single.delegate = self
+        view.addGestureRecognizer(single)
+        singleTapGR = single
+
+        let double = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
+        double.numberOfTapsRequired = 2
+        double.delegate = self
+        view.addGestureRecognizer(double)
+        doubleTapGR = double
+        single.require(toFail: double)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+        panGR = pan
+
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinch.delegate = self
+        view.addGestureRecognizer(pinch)
+        pinchGR = pinch
+    }
+
+    func removeGesture(from view: UIView) {
+        if let singleTapGR { view.removeGestureRecognizer(singleTapGR) }
+        if let doubleTapGR { view.removeGestureRecognizer(doubleTapGR) }
+        if let panGR { view.removeGestureRecognizer(panGR) }
+        if let pinchGR { view.removeGestureRecognizer(pinchGR) }
+        touchCache.removeAll()
+    }
+
+    @objc private func handleSingleTap(_ gesture: UITapGestureRecognizer) {
+        if gesture.state == .ended {
+            singleTapped?(self)
+        }
+    }
+
+    @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        if gesture.state == .ended {
+            doubleTapped?(self)
+        }
+    }
+
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let view = hostView else { return }
+        let velocity = gesture.velocity(in: view)
+        let location: IRPanLocation = gesture.location(in: view).x < view.bounds.midX ? .left : .right
+        let direction: IRPanDirection = abs(velocity.x) >= abs(velocity.y) ? .horizontal : .vertical
+
+        switch gesture.state {
+        case .began:
+            beganPan?(self, direction, location)
+        case .changed:
+            changedPan?(self, direction, location, velocity)
+        case .ended, .cancelled, .failed:
+            endedPan?(self, direction, location)
+        default:
+            break
+        }
+    }
+
+    @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        if gesture.state == .ended {
+            pinched?(self, gesture.scale)
+        }
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer == panGR, disableTypes.contains(.pan) {
+            return false
+        }
+        if gestureRecognizer == pinchGR, disableTypes.contains(.pinch) {
+            return false
+        }
+        if gestureRecognizer == singleTapGR, disableTypes.contains(.singleTap) {
+            return false
+        }
+        if gestureRecognizer == doubleTapGR, disableTypes.contains(.doubleTap) {
+            return false
+        }
+
+        if let pan = gestureRecognizer as? UIPanGestureRecognizer, let view = hostView {
+            let velocity = pan.velocity(in: view)
+            if abs(velocity.x) >= abs(velocity.y), disablePanMovingDirection == .horizontal {
+                return false
+            }
+            if abs(velocity.x) < abs(velocity.y), disablePanMovingDirection == .vertical {
+                return false
+            }
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        touchCache[ObjectIdentifier(gestureRecognizer)] = touch
+        guard let triggerCondition else { return true }
+
+        let type: IRGestureType
+        if gestureRecognizer == singleTapGR {
+            type = .singleTap
+        } else if gestureRecognizer == doubleTapGR {
+            type = .doubleTap
+        } else if gestureRecognizer == panGR {
+            type = .pan
+        } else if gestureRecognizer == pinchGR {
+            type = .pinch
+        } else {
+            return true
+        }
+
+        return triggerCondition(self, type, gestureRecognizer, touch)
     }
 }
