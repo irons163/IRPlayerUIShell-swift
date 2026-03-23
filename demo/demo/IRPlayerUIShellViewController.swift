@@ -427,6 +427,9 @@ final class IRGestureAdapter: NSObject, IRGestureControlling, UIGestureRecognize
     private weak var pinchGR: UIPinchGestureRecognizer?
 
     private var touchCache: [ObjectIdentifier: UITouch] = [:]
+    private var activePanDirection: IRPanDirection = .horizontal
+    private var activePanLocation: IRPanLocation = .left
+    private var hasActivePan = false
 
     func addGesture(to view: UIView) {
         removeGesture(from: view)
@@ -481,16 +484,29 @@ final class IRGestureAdapter: NSObject, IRGestureControlling, UIGestureRecognize
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
         guard let view = hostView else { return }
         let velocity = gesture.velocity(in: view)
-        let location: IRPanLocation = gesture.location(in: view).x < view.bounds.midX ? .left : .right
-        let direction: IRPanDirection = abs(velocity.x) >= abs(velocity.y) ? .horizontal : .vertical
+        let translation = gesture.translation(in: view)
 
         switch gesture.state {
         case .began:
-            beganPan?(self, direction, location)
+            let x = abs(velocity.x)
+            let y = abs(velocity.y)
+            if x > y {
+                activePanDirection = .horizontal
+            } else if x < y {
+                activePanDirection = .vertical
+            } else {
+                activePanDirection = abs(translation.x) >= abs(translation.y) ? .horizontal : .vertical
+            }
+            activePanLocation = gesture.location(in: view).x < view.bounds.midX ? .left : .right
+            hasActivePan = true
+            beganPan?(self, activePanDirection, activePanLocation)
         case .changed:
-            changedPan?(self, direction, location, velocity)
+            guard hasActivePan else { return }
+            changedPan?(self, activePanDirection, activePanLocation, velocity)
         case .ended, .cancelled, .failed:
-            endedPan?(self, direction, location)
+            guard hasActivePan else { return }
+            endedPan?(self, activePanDirection, activePanLocation)
+            hasActivePan = false
         default:
             break
         }
