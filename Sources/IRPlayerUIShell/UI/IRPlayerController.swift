@@ -290,9 +290,15 @@ public struct IRDisableGestureTypes: OptionSet {
 
     public var customAudioSession: Bool = false
 
-    public private(set) var isLastAssetURL: Bool = false
+    private let playlistState = IRPlaylistState()
 
-    public private(set) var currentPlayIndex: Int = 0
+    public var isLastAssetURL: Bool {
+        playlistState.isLast
+    }
+
+    public var currentPlayIndex: Int {
+        playlistState.currentIndex
+    }
 
     // 0...1.0, where 1.0 is maximum brightness. Only supported by main screen.
     @Clamped(0...1) public var brightness: CGFloat = 0 {
@@ -322,10 +328,16 @@ public struct IRDisableGestureTypes: OptionSet {
     public var assetURL: URL? {
         didSet {
             currentPlayerManager.replaceVideoWithURL(contentURL: assetURL)
+            playlistState.selectIfMatched(url: assetURL)
         }
     }
 
-    public var assetURLs: [URL]?
+    public var assetURLs: [URL]? {
+        didSet {
+            playlistState.setURLs(assetURLs)
+            playlistState.selectIfMatched(url: assetURL)
+        }
+    }
 
     /// The gesture types that the player not support.
     public var disableGestureTypes: IRDisableGestureTypes = .none
@@ -507,26 +519,16 @@ public struct IRDisableGestureTypes: OptionSet {
      Plays the next URL in the playlist, if available.
      */
     public func playTheNext() {
-        guard let assetURLs = assetURLs, assetURLs.count > 0 else { return }
-        let index = currentPlayIndex + 1
-        if index >= assetURLs.count { return }
-
-        let assetURL = assetURLs[index]
-        self.assetURL = assetURL
-        self.currentPlayIndex = index
+        guard let nextURL = playlistState.next() else { return }
+        assetURL = nextURL
     }
 
     /**
      Plays the previous URL in the playlist, if available.
      */
     public func playThePrevious() {
-        guard let assetURLs = assetURLs, assetURLs.count > 0 else { return }
-        let index = currentPlayIndex - 1
-        if index < 0 { return }
-
-        let assetURL = assetURLs[index]
-        self.assetURL = assetURL
-        self.currentPlayIndex = index
+        guard let previousURL = playlistState.previous() else { return }
+        assetURL = previousURL
     }
 
     /**
@@ -535,12 +537,8 @@ public struct IRDisableGestureTypes: OptionSet {
      - Parameter index: The index of the URL to play.
      */
     public func playTheIndex(_ index: Int) {
-        guard let assetURLs = assetURLs, assetURLs.count > 0 else { return }
-        if index >= assetURLs.count { return }
-
-        let assetURL = assetURLs[index]
-        self.assetURL = assetURL
-        self.currentPlayIndex = index
+        guard let selectedURL = playlistState.select(index: index) else { return }
+        assetURL = selectedURL
     }
 
     /**

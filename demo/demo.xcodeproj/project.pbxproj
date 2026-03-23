@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A74EFE52F7133E700C494DF /* IRPlayerUIShell in Frameworks */ = {isa = PBXBuildFile; productRef = 4A74EFE42F7133E700C494DF /* IRPlayerUIShell */; };
+		4A74EFE82F7133F800C494DF /* IRPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = 4A74EFE72F7133F800C494DF /* IRPlayer */; };
 		B51C7FE62EAFAAA80026DA13 /* IRPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = B51C7FE52EAFAAA80026DA13 /* IRPlayer */; };
 		B5C84B462D425D65001A9402 /* IRPlayerUIShell in Frameworks */ = {isa = PBXBuildFile; productRef = B5C84B452D425D65001A9402 /* IRPlayerUIShell */; };
 		B5C84B4B2D426BD2001A9402 /* SDWebImage in Frameworks */ = {isa = PBXBuildFile; productRef = B5C84B4A2D426BD2001A9402 /* SDWebImage */; };
@@ -72,6 +74,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				B5C84B4B2D426BD2001A9402 /* SDWebImage in Frameworks */,
+				4A74EFE82F7133F800C494DF /* IRPlayer in Frameworks */,
+				4A74EFE52F7133E700C494DF /* IRPlayerUIShell in Frameworks */,
 				B51C7FE62EAFAAA80026DA13 /* IRPlayer in Frameworks */,
 				B5C84B462D425D65001A9402 /* IRPlayerUIShell in Frameworks */,
 			);
@@ -137,6 +141,8 @@
 				B5C84B452D425D65001A9402 /* IRPlayerUIShell */,
 				B5C84B4A2D426BD2001A9402 /* SDWebImage */,
 				B51C7FE52EAFAAA80026DA13 /* IRPlayer */,
+				4A74EFE42F7133E700C494DF /* IRPlayerUIShell */,
+				4A74EFE72F7133F800C494DF /* IRPlayer */,
 			);
 			productName = demo;
 			productReference = B5C84B102D425D35001A9402 /* demo.app */;
@@ -221,9 +227,9 @@
 			mainGroup = B5C84B072D425D35001A9402;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				B5C84B442D425D65001A9402 /* XCLocalSwiftPackageReference "../../IRPlayerUIShell" */,
 				B5C84B492D426BD2001A9402 /* XCRemoteSwiftPackageReference "SDWebImage" */,
-				B51C7FE42EAFAAA80026DA13 /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */,
+				4A74EFE32F7133E700C494DF /* XCLocalSwiftPackageReference "../../IRPlayerUIShell-swift" */,
+				4A74EFE62F7133F800C494DF /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B5C84B112D425D35001A9402 /* Products */;
@@ -588,13 +594,13 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		B51C7FE42EAFAAA80026DA13 /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */ = {
+		4A74EFE32F7133E700C494DF /* XCLocalSwiftPackageReference "../../IRPlayerUIShell-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../IRPlayerUIShell-swift";
+		};
+		4A74EFE62F7133F800C494DF /* XCLocalSwiftPackageReference "../../IRPlayer-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../IRPlayer-swift";
-		};
-		B5C84B442D425D65001A9402 /* XCLocalSwiftPackageReference "../../IRPlayerUIShell" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../IRPlayerUIShell;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -610,6 +616,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4A74EFE42F7133E700C494DF /* IRPlayerUIShell */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = IRPlayerUIShell;
+		};
+		4A74EFE72F7133F800C494DF /* IRPlayer */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = IRPlayer;
+		};
 		B51C7FE52EAFAAA80026DA13 /* IRPlayer */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = IRPlayer;
